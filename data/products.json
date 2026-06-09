@@ -1,0 +1,14 @@
+[
+  {"id": "P01", "name": "氨基酸温和洁面乳 120g", "category": "美妆护肤", "price": 69, "highlight": "敏感肌可用，泡沫细腻不紧绷"},
+  {"id": "P02", "name": "油皮专用清爽面霜 50ml", "category": "美妆护肤", "price": 129, "highlight": "控油不闷痘，夏天也清爽"},
+  {"id": "P03", "name": "玻尿酸补水精华 30ml", "category": "美妆护肤", "price": 199, "highlight": "深层补水，叠加面霜更服帖"},
+  {"id": "P04", "name": "樱花粉保温杯 500ml", "category": "家居日用", "price": 89, "highlight": "316 不锈钢，12 小时保温"},
+  {"id": "P05", "name": "桌面收纳盒三件套", "category": "家居日用", "price": 45, "highlight": "分格设计，化妆品文具都能放"},
+  {"id": "P06", "name": "助眠香薰礼盒", "category": "家居日用", "price": 159, "highlight": "薰衣草调，送礼自用都合适"},
+  {"id": "P07", "name": "蓝牙耳机 Pro", "category": "数码", "price": 299, "highlight": "主动降噪，单次 8 小时续航"},
+  {"id": "P08", "name": "快充充电宝 20000mAh", "category": "数码", "price": 139, "highlight": "22.5W 快充，可上飞机"},
+  {"id": "P09", "name": "加厚防滑瑜伽垫", "category": "运动户外", "price": 99, "highlight": "8mm 加厚，膝盖友好"},
+  {"id": "P10", "name": "弹力带训练套装", "category": "运动户外", "price": 59, "highlight": "5 种阻力，居家塑形"},
+  {"id": "P11", "name": "每日坚果礼盒 30 包", "category": "食品", "price": 119, "highlight": "独立小包，办公室零食首选"},
+  {"id": "P12", "name": "冻干茶颜咖啡 24 颗", "category": "食品", "price": 89, "highlight": "冷热水速溶，0 蔗糖"}
+]

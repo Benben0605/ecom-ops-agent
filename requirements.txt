@@ -1,3 +1,5 @@
+fastapi
+uvicorn
 openai
 python-dotenv
-# RAG 依赖在 Week1-Step4 再定（如 chromadb / sentence-transformers）
+chromadb
