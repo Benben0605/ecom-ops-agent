@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.env
+.env.example
+.chroma/
+*.egg-info/
+.claude/
+docs/
+DAILY_SCHEDULE.md
+PROGRESS.md
+README.md
+Dockerfile
+.dockerignore
+uv.lock

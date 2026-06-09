@@ -3,7 +3,6 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
-chroma_db/
 .chroma/
 *.egg-info/
 .claude/
