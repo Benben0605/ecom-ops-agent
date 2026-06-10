@@ -1,11 +1,11 @@
 import json
-from collections import Counter
+from collections import Counter,defaultdict
 from pathlib import Path
 
 _ORDERS = json.loads((Path(__file__).parents[2] / "data" / "orders.json").read_text())
 
 
-def run(category: str | None = None) -> str:
+def run(category: str | None = None, metric : str | None = None) -> str:
     orders = list(_ORDERS.values())
     if category:
         orders = [o for o in orders if category in o["category"] or o["category"] in category]
@@ -17,8 +17,19 @@ def run(category: str | None = None) -> str:
     gmv = sum(o["amount"] for o in valid)
     aov = gmv / len(valid) if valid else 0
 
-    hot = Counter(o["item"] for o in valid).most_common(3)
-    hot_lines = "\n".join(f"  {i}. {item}（{n} 单）" for i, (item, n) in enumerate(hot, 1))
+    hot_count = Counter(o["item"] for o in valid).most_common(3)
+    sales_by_item = defaultdict(float)
+    for o in valid:
+        sales_by_item[o["item"]] += o["amount"]
+    hot_sales = Counter(sales_by_item).most_common(3)
+    hot_count_lines = "按订单数口径：\n" + "\n".join(f"{i}. {item}（{n} 单）" for i, (item, n) in enumerate(hot_count, 1))
+    hot_sales_lines = "按销售额口径：\n" + "\n".join(f"{i}. {item}（¥{n}）" for i, (item, n) in enumerate(hot_sales, 1))
+    if metric == "count":
+        hot_lines = hot_count_lines
+    elif metric == "sales":
+        hot_lines = hot_sales_lines
+    else:
+        hot_lines = f"{hot_count_lines}\n{hot_sales_lines}"
 
     status = Counter(o["status"] for o in orders)
     status_line = "，".join(f"{s} {n} 单" for s, n in status.items())
