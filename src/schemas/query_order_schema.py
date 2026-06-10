@@ -1,4 +1,4 @@
-QUERY_ORDER_SHCEMA = {
+QUERY_ORDER_SCHEMA = {
     "type": "function",
     "function": {
         "name": "query_order",
