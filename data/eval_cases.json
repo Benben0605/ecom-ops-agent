@@ -1,0 +1,37 @@
+[
+    {
+        "id": "case_01",
+        "question": "帮我查看订单10001的状态",
+        "should_call_tool": true,
+        "tool_name": "query_order",
+        "tool_params": {"order_id": "10001"}
+    },
+    {
+        "id": "case_02",
+        "question": "退货政策是怎样的",
+        "should_call_tool": true,
+        "tool_name": "kb_search",
+        "tool_params": {"query": "退货政策是怎样的"}
+    },
+    {
+        "id": "case_03",
+        "question": "推荐护肤产品",
+        "should_call_tool": true,
+        "tool_name": "recommend_product",
+        "tool_params": {"category": "美妆护肤"}
+    },
+    {
+        "id": "case_04",
+        "question": "统计一下美妆护肤产品的运营数据",
+        "should_call_tool": true,
+        "tool_name": "analyze_ops",
+        "tool_params": {"category": "美妆护肤"}
+    },
+    {
+        "id": "case_05",
+        "question": "你好呀",
+        "should_call_tool": false,
+        "tool_name": null,
+        "tool_params": null
+    }
+]
