@@ -7,6 +7,9 @@ __pycache__/
 *.egg-info/
 .claude/
 
+# Runtime audit log (regenerated on each run)
+logs/
+
 # Local planning/progress notes
 /docs/
 /DAILY_SCHEDULE.md
