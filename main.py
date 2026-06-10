@@ -1,3 +1,4 @@
+import readline
 from src.agent import ChatSession
 
 def main():
