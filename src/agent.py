@@ -1,13 +1,16 @@
+import time
 from uuid import uuid4
 
 from openai import OpenAI
-from src.schemas.query_order_schema import QUERY_ORDER_SHCEMA
+from src.schemas.query_order_schema import QUERY_ORDER_SCHEMA
 from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
 from src.schemas.recommend_product_schema import RECOMMEND_PRODUCT_SCHEMA
 from src.schemas.analyze_ops_schema import ANALYZE_OPS_SCHEMA
 from src import config
 from src.tools import kb_search, query_order, recommend_product, analyze_ops
 import json
+
+from src.audit import ToolAudit, record_audit
 
 client = OpenAI(api_key=config.API_KEY, base_url=config.BASE_URL)
 
@@ -18,7 +21,7 @@ TOOLS = {
     "analyze_ops": analyze_ops.run,
 }
 
-tools = [QUERY_ORDER_SHCEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA]
+tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA]
 _system_prompt = "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于利用工具解决问题"
 
 class ChatSession():
@@ -58,7 +61,34 @@ class ChatSession():
             tool_calls_dicts = [tc.model_dump() for tc in tool_calls]
             self.messages.append({"role": assistant_message.role, "content": assistant_message.content, "tool_calls": tool_calls_dicts})
             for tool_call in tool_calls:
-                result = TOOLS[tool_call.function.name](**json.loads(tool_call.function.arguments))
+                func_name = tool_call.function.name
+                func_dict = json.loads(tool_call.function.arguments)
+                start = time.perf_counter()
+                try:
+                    result = TOOLS[func_name](**func_dict)
+                    elapsed = (time.perf_counter() - start) * 1000
+                    tool_audit = ToolAudit(
+                        session_id=self.id,
+                        tool_ok=True,
+                        tool_name=func_name,
+                        tool_params=func_dict,
+                        tool_duration_ms=elapsed, 
+                        tool_output=result
+                    )   
+                except Exception as e:
+                    result = f"工具执行失败，错误信息：{e}"
+                    elapsed = (time.perf_counter() - start) * 1000
+                    tool_audit = ToolAudit(
+                        session_id=self.id,
+                        tool_ok=False,
+                        tool_name=func_name,
+                        tool_params=func_dict,
+                        tool_duration_ms=elapsed,
+                        tool_output=result,
+                        tool_error=str(e)
+                    )
+                record_audit(tool_audit)
+
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
