@@ -28,6 +28,7 @@ def get_or_create(session_id: str) -> ChatSession:
 
 @app.post("/chat")
 def chat_endpoint(request: RequestMessage) -> ResponseMessage:
+    
     session = get_or_create(request.session_id)
     chat_response = session.chat(request.user_input)
     return ResponseMessage(session_id=session.id, assistant_message=chat_response)

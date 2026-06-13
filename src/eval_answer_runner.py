@@ -1,138 +1,60 @@
 from pathlib import Path
-import time
-from uuid import uuid4
-
-from openai import OpenAI
-from src.schemas.query_order_schema import QUERY_ORDER_SCHEMA
-from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
-from src.schemas.recommend_product_schema import RECOMMEND_PRODUCT_SCHEMA
-from src.schemas.analyze_ops_schema import ANALYZE_OPS_SCHEMA
-from src import config
-from src.tools import kb_search, query_order, recommend_product, analyze_ops
+from src.agent import ChatSession
 import json
+from src.audit import AuditRecorder, MessageRecorder
 
-from src.audit import ToolAudit, record_audit
+AUDIT_PATH = Path(__file__).parents[1] / "logs" / "audit.jsonl"
+SESSION_MESSAGES_PATH = Path(__file__).parents[1] / "logs" / "session_messages.jsonl"
 
-client = OpenAI(api_key=config.API_KEY, base_url=config.BASE_URL)
-
-TOOLS = {
-    "query_order": query_order.run,
-    "kb_search": kb_search.run,
-    "recommend_product": recommend_product.run,
-    "analyze_ops": analyze_ops.run,
-}
-
-tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA]
-_system_prompt = "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于利用工具解决问题"
-
-class ChatSession():
-    """单会话多轮对话，内置工具路由与历史压缩。
-
-    self.messages 全程只存放 JSON 原生类型（dict/list/str/...），
-    SDK 返回的 Pydantic 对象在入栈前必须 model_dump() 转 dict，
-    否则下一轮请求会因为 tool_calls 被 str() 降级而报 400。
-    """
-
-    def __init__(self, system_prompt: str = _system_prompt):
-        self.id = uuid4().hex
-        self.messages = [{"role": "system", "content": system_prompt} ]
-
-    def chat(self, user_input: str) -> str:
-        """跑一轮用户输入：循环调用模型 + 执行工具，直到模型不再请求工具。
-
-        返回模型最终的文本回复。每轮结束后根据 usage.prompt_tokens
-        触发 _maybe_compress 做历史压缩。
-        """
-        self.messages.append({"role": "user", "content": user_input})
-        while True:
-            r = client.chat.completions.create(
-            model=config.MODEL,
-            messages=self.messages,
-            tools=tools
-            )
-            assistant_message = r.choices[0].message
-            tool_calls = assistant_message.tool_calls
-            
-            if not tool_calls:
-                self.messages.append({"role": assistant_message.role, "content": assistant_message.content})
-                prompt_tokens = r.usage.prompt_tokens
-                self._maybe_compress(prompt_tokens)
-                return assistant_message.content
-            
-            tool_calls_dicts = [tc.model_dump() for tc in tool_calls]
-            self.messages.append({"role": assistant_message.role, "content": assistant_message.content, "tool_calls": tool_calls_dicts})
-            for tool_call in tool_calls:
-                func_name = tool_call.function.name
-                func_dict = json.loads(tool_call.function.arguments)
-                start = time.perf_counter()
-                try:
-                    result = TOOLS[func_name](**func_dict)
-                    elapsed = (time.perf_counter() - start) * 1000
-                    tool_audit = ToolAudit(
-                        session_id=self.id,
-                        tool_ok=True,
-                        tool_name=func_name,
-                        tool_params=func_dict,
-                        tool_duration_ms=elapsed, 
-                        tool_output=result
-                    )   
-                except Exception as e:
-                    result = f"工具执行失败，错误信息：{e}"
-                    elapsed = (time.perf_counter() - start) * 1000
-                    tool_audit = ToolAudit(
-                        session_id=self.id,
-                        tool_ok=False,
-                        tool_name=func_name,
-                        tool_params=func_dict,
-                        tool_duration_ms=elapsed,
-                        tool_output=result,
-                        tool_error=str(e)
-                    )
-                record_audit(tool_audit)
-
-                self.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result
-                })
-            
-
-    def _maybe_compress(self, prompt_tokens: int):
-        """超过阈值时把早期历史摘要成一条 system 消息，保留最近 lately_round 轮 user 之后的全部消息。
-
-        切点取 user_idx[-lately_round]，确保 assistant + tool 配对不被截断
-        （否则带 tool_calls 的 assistant 消息找不到对应 tool 结果会报错）。
-        """
-        if prompt_tokens <= config.compress_token_threshold:
-            return
-
-        user_idx = [i for i, m in enumerate(self.messages) if m["role"] == "user"]
-        if len(user_idx) <= config.lately_round:
-            return
-
-        cut = user_idx[-config.lately_round]
-        old = self.messages[1:cut]
-        recent = self.messages[cut:]
-
-        summary_prompt = "请用一段简洁中文总结以下对话的关键信息（用户意图、已查询到的订单/政策事实、未完成的事项），保留对后续回答有用的事实：\n\n" + "\n".join(json.dumps(old_dict, ensure_ascii=False) for old_dict in old)
-        s = client.chat.completions.create(
-            model=config.MODEL,
-            messages=[{"role": "user", "content": summary_prompt}],
-        )
-        summary = s.choices[0].message.content
-
-        self.messages = [
-            self.messages[0],
-            {"role": "system", "content": f"以下是被压缩的历史对话摘要：\n{summary}"},
-            *recent,
-        ]
-        print("***触发压缩***")
-
-if __name__ == "__main__":
+def eval_answer_run():
     eval_case_path = Path(__file__).parents[1] / "data" / "eval_cases.json"
     eval_cases = json.loads(eval_case_path.read_text(encoding="utf-8"))
+    
+    run_map_path = Path(__file__).parents[1] / "logs" / "run_map.json"
+    
+    run_map_list = []
     for case in eval_cases:
-        if case["id"] != "case_04":
-            continue
-        session = ChatSession()
-        response = session.chat(case["question"])
+        session = ChatSession(audit_recorder=AuditRecorder(recorder_path=AUDIT_PATH))
+        session.chat(case["question"])
+        MessageRecorder(recorder_path=SESSION_MESSAGES_PATH).record(
+            {
+                "session_id": session.id,
+                "messages": session.messages
+            }
+        )
+        
+        run_map = {}
+        run_map["case_id"] = case["id"]
+        run_map["session_id"] = session.id
+        run_map_list.append(run_map)
+    run_map_path.parent.mkdir(parents=True, exist_ok=True)
+    with run_map_path.open("w", encoding="utf-8") as f:
+        f.write(json.dumps(run_map_list, ensure_ascii=False, indent=2))
+
+def per_case_run(case_id: str, run_count: int):
+    eval_case_path = Path(__file__).parents[1] / "data" / "eval_cases.json"
+    eval_cases = json.loads(eval_case_path.read_text(encoding="utf-8"))
+    
+    run_map_path = Path(__file__).parents[1] / "logs" / "run_map.json"
+    
+    run_map_list, current_count = [], 1
+    case = next((c for c in eval_cases if c["id"] == case_id), None)
+    while case is not None and current_count <= run_count:
+        session = ChatSession(audit_recorder=AuditRecorder(recorder_path=AUDIT_PATH))
+        session.chat(case["question"])
+        MessageRecorder(recorder_path=SESSION_MESSAGES_PATH).record(session.messages)
+        
+        run_map = {}
+        run_map["case_id"] = case["id"]
+        run_map["session_id"] = session.id
+        run_map_list.append(run_map)
+
+        current_count += 1
+
+    run_map_path.parent.mkdir(parents=True, exist_ok=True)
+    with run_map_path.open("w", encoding="utf-8") as f:
+        f.write(json.dumps(run_map_list, ensure_ascii=False, indent=2))
+
+if __name__ == "__main__":
+    eval_answer_run()
+    # per_case_run("case_006", 20)
