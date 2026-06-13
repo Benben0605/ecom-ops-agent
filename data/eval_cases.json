@@ -1,37 +1,243 @@
 [
     {
-        "id": "case_01",
-        "question": "帮我查看订单10001的状态",
+        "id": "case_001",
+        "bucket": "direct",
+        "question": "查订单10001状态",
         "should_call_tool": true,
-        "tool_name": "query_order",
-        "tool_params": {"order_id": "10001"}
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10001"}        
+            }
+        ]
+        
     },
     {
-        "id": "case_02",
-        "question": "退货政策是怎样的",
-        "should_call_tool": true,
-        "tool_name": "kb_search",
-        "tool_params": {"query": "退货政策是怎样的"}
-    },
-    {
-        "id": "case_03",
-        "question": "推荐护肤产品",
-        "should_call_tool": true,
-        "tool_name": "recommend_product",
-        "tool_params": {"category": "美妆护肤"}
-    },
-    {
-        "id": "case_04",
-        "question": "统计一下美妆护肤产品的运营数据",
-        "should_call_tool": true,
-        "tool_name": "analyze_ops",
-        "tool_params": {"category": "美妆护肤"}
-    },
-    {
-        "id": "case_05",
-        "question": "你好呀",
+        "id": "case_002",
+        "bucket": "rephrased",
+        "question": "我那个包裹到哪了",
         "should_call_tool": false,
-        "tool_name": null,
-        "tool_params": null
+        "expected_calls": []
+    },
+    {
+        "id": "case_003",
+        "bucket": "multi_intent",
+        "question": "10001到了吗，顺便看看有啥护肤品推荐",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10001"}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "美妆护肤"}
+            }
+        ]
+    },
+    {
+        "id": "case_004",
+        "bucket": "direct",
+        "question": "退货政策是什么",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "kb_search",
+                "tool_params": {"query": "退货政策是什么"}
+            }
+        ]
+    },
+    {
+        "id": "case_005",
+        "bucket": "rephrased",
+        "question": "退款多久到账",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "kb_search",
+                "tool_params": {"query": "退款多久到账"}
+            }
+        ]
+    },
+    {
+        "id": "case_006",
+        "bucket": "direct",
+        "question": "推荐美妆护肤产品",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "美妆护肤"}
+            }
+        ],
+        "trap": "category(美妆护肤)必填已满足，却过度澄清问预算/款式，零工具调用(under-action)"
+    },
+    {
+        "id": "case_007",
+        "bucket": "confusing",
+        "question": "美妆护肤卖的怎么样",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {"category": "美妆护肤"}
+            }
+        ],
+        "trap": "被「卖的怎么样」带去recommend_product"
+    },
+    {
+        "id": "case_008",
+        "bucket": "direct",
+        "question": "运动户外的运营数据",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {"category": "运动户外"}
+            }
+        ]
+    },
+    {
+        "id": "case_009",
+        "bucket": "confusing",
+        "question": "运动户外品类卖的怎么样",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {"category": "运动户外"}
+            }
+        ],
+        "trap": "被「卖的怎么样」带去recommend_product"
+    },
+    {
+        "id": "case_010",
+        "bucket": "negative",
+        "question": "今天天气怎么样",
+        "should_call_tool": false,
+        "expected_calls": []
+    },
+    {
+        "id": "case_011",
+        "bucket": "negative",
+        "question": "你能替我做什么事情",
+        "should_call_tool": false,
+        "expected_calls": []
+    },
+    {
+        "id": "case_012",
+        "bucket": "rephrased",
+        "question": "你能替我做什么事情，我最近皮肤不太好，请推荐一下产品给我",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "美妆护肤"}
+            }
+        ]
+    },
+    {
+        "id": "case_013",
+        "bucket": "multi_intent",
+        "question": "订单10002物流到哪了，什么时候可以收到货。如果不满意能退货吗？类似的产品有什么推荐的吗？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10002"}
+            },
+            {
+                "tool_name": "kb_search",
+                "tool_params": {"query": "退货政策"}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "数码"}
+            }
+        ]
+    },
+    {
+        "id": "case_014",
+        "bucket": "multi_intent",
+        "question": "和我的订单10002类似的产品有哪些，最近有搞活动吗，哪些卖的比较好？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10002"}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "数码"}
+            },
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {"category": "数码", "metric": "count"}
+            }
+        ]
+    },
+    {
+        "id": "case_015",
+        "bucket": "weakness",
+        "question": "最近有什么促销活动吗？",
+        "should_call_tool": false,
+        "expected_calls": [],
+        "trap": "缺失「促销活动咨询」工具，无法回答。可能抓kb_search兜底，误触"
+    },
+    {
+        "id": "case_016",
+        "bucket": "multi_intent",
+        "question": "如果我不喜欢能退货吗？我最近在装修，还想买些家用品。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "kb_search",
+                "tool_params": {"query": "退货政策"}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "家居日用"}
+            }
+        ],
+        "trap": "后半句像在闲聊，可能无法触发recommend_product"
+    },
+    {
+        "id": "case_017",
+        "bucket": "multi_intent",
+        "question": "订单数据怎样了？10001。给我推荐这个订单类似的产品",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10001"}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {"category": "家居日用"}
+            }
+        ],
+        "trap": "可能被「订单数据」带到analyze_ops"
+    },
+    {
+        "id": "case_018",
+        "bucket": "confusing",
+        "question": "订单数据10001怎样了？快到货了吗？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {"order_id": "10001"}
+            }
+        ],
+        "trap": "可能被「数据」带到analyze_ops"
+    },
+    {
+        "id": "case_019",
+        "bucket": "weakness",
+        "question": "我的订单10001帮我开下发票",
+        "should_call_tool": false,
+        "expected_calls": [],
+        "trap": "缺失「开发票」能力，可能被「订单10001」带到query_order，可能用kb_search兜底"
     }
+
 ]
