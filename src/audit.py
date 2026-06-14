@@ -29,6 +29,11 @@ class AuditRecorder:
         with self.recorder_path.open("a", encoding="utf-8") as f:
             f.write(raw + "\n")
 
+class NoOpRecorder:
+    """空记录器：supervisor 的 agent-as-tool dispatch 不进审计流（只记叶子业务工具）。"""
+    def record(self, tool_audit: ToolAudit) -> None:
+        pass
+
 class MessageRecorder:
     def __init__(self, recorder_path: Path | None = None):
         self.recorder_path = recorder_path or DEFAULT_MESSAGES_RECORDER_PATH
