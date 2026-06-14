@@ -1,4 +1,5 @@
 
+from collections import Counter
 from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
@@ -26,8 +27,33 @@ class EvalResult:
     bucket: str
     called_tools: list
     spec_tool: list[str] | None
+    missing_tools: list[str]
+    unexpected_tools: list[str]
     is_misfire: bool
-    is_hit: bool
+    is_hit: bool | None
+
+def _counter_diff(left: Counter, right: Counter) -> list[str]:
+    diff: list[str] = []
+    for tool_name, count in (left - right).items():
+        diff.extend([tool_name] * count)
+    return diff
+
+def summarize_results(case_eval_result: dict[str, dict]) -> dict:
+    results = list(case_eval_result.values())
+    pos_result = [v for v in results if v["spec_tool"]]
+    route_hit_count = len([r for r in pos_result if r["is_hit"]])
+    route_error_count = len([r for r in pos_result if r["is_hit"] is False])
+    misfire_count = len([r for r in results if r["is_misfire"]])
+
+    return {
+        "evaluated_case_count": len(results),
+        "positive_case_count": len(pos_result),
+        "route_hit_count": route_hit_count,
+        "route_error_count": route_error_count,
+        "routing_accuracy": route_hit_count / len(pos_result) if pos_result else 0,
+        "misfire_count": misfire_count,
+        "misfire_rate": misfire_count / len(results) if results else 0,
+    }
 
 def eval_judge() -> dict[str, dict]:
     run_map, cases, audit_lines = load()
@@ -52,21 +78,23 @@ def eval_judge() -> dict[str, dict]:
         audit_called = called[case_id]
         expected_tools = [d["tool_name"] for d in c["expected_calls"] if d["tool_name"] is not None]
 
-        expected = set(expected_tools)
-        actual = set(audit_called)
+        expected = Counter(expected_tools)
+        actual = Counter(audit_called)
+        missing_tools = _counter_diff(expected, actual)
+        unexpected_tools = _counter_diff(actual, expected)
 
         # 正样本
         if c["should_call_tool"]:
             is_hit, is_misfire = False, False
-            if expected <= actual:   # 期望的全调到
+            if not missing_tools:   # 期望的全调到，重复调用也要满足次数
                 is_hit = True
-            if not actual <= expected: # 调用了期望之外的工具
+            if unexpected_tools: # 调用了期望之外的工具，或同一工具多调
                 is_misfire = True
             
         # 负样本
         else:
             is_hit, is_misfire = None, False
-            if len(actual) > 0:
+            if sum(actual.values()) > 0:
                 is_misfire = True
 
         case_eval_result[case_id] = asdict(
@@ -75,6 +103,8 @@ def eval_judge() -> dict[str, dict]:
                 bucket=bucket,
                 called_tools=audit_called,
                 spec_tool=expected_tools,
+                missing_tools=missing_tools,
+                unexpected_tools=unexpected_tools,
                 is_misfire=is_misfire,
                 is_hit=is_hit
             )
@@ -90,13 +120,10 @@ if __name__ == "__main__":
     with open(case_eval_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(case_eval_result, ensure_ascii=False, indent=2))
     
-    results = case_eval_result.values()
-    # cross-case 指标：路由准确率（该调的调对了没）。只有正样本参与计算，负样本不参与计算
-    pos_result = [v for v in case_eval_result.values() if v["spec_tool"]]
-    hit_rate = len([r for r in pos_result if r["is_hit"]]) / len(pos_result) if pos_result else 0
-
-    # cross-case 指标：误触发率。不期望的工具调用了吗(调了不该调的)，正负样本都要参与计算
-    misfire_rate = len([r for r in results if r["is_misfire"]]) / len(results) if results else 0
+    metrics = summarize_results(case_eval_result)
+    metrics_path = Path(__file__).parents[1] / "logs" / "eval_metrics.json"
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        f.write(json.dumps(metrics, ensure_ascii=False, indent=2))
     
-    print(f"路由准确率：{hit_rate * 100:.2f}%")
-    print(f"误触发率：{misfire_rate * 100:.2f}%")
+    print(f"路由准确率：{metrics['routing_accuracy'] * 100:.2f}%")
+    print(f"误触发率：{metrics['misfire_rate'] * 100:.2f}%")
