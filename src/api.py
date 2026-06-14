@@ -1,14 +1,17 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 
 from src.agent import ChatSession
+from src.dashboard import build_dashboard_data
 
 app = FastAPI()
 _sessions: dict[str,ChatSession] = {}
+_static_dir = Path(__file__).resolve().parent.parent / "static"
 
 class RequestMessage(BaseModel):
     session_id : str = ""
@@ -33,7 +36,17 @@ def chat_endpoint(request: RequestMessage) -> ResponseMessage:
     chat_response = session.chat(request.user_input)
     return ResponseMessage(session_id=session.id, assistant_message=chat_response)
 
-_static_dir = Path(__file__).resolve().parent.parent / "static"
+@app.get("/api/eval-dashboard")
+def eval_dashboard_endpoint() -> dict:
+    return build_dashboard_data()
+
+@app.get("/dashboard")
+def dashboard_page() -> FileResponse:
+    return FileResponse(
+        _static_dir / "dashboard.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
 app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
 
 if __name__ == "__main__":
