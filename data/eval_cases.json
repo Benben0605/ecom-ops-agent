@@ -522,14 +522,6 @@
         ]
     },
     {
-        "id": "case_060",
-        "bucket": "clarify",
-        "question": "随便给我推荐点东西吧",
-        "should_call_tool": false,
-        "expected_calls": [],
-        "trap": "recommend缺必填category，正解=澄清问类目，而非空调或乱选类目"
-    },
-    {
         "id": "case_036",
         "bucket": "confusing",
         "question": "数码里哪些卖得最好",
@@ -898,6 +890,14 @@
             }
         ],
         "trap": "缺转人工/工单能力，可能kb_search兜底"
+    },
+    {
+        "id": "case_060",
+        "bucket": "clarify",
+        "question": "随便给我推荐点东西吧",
+        "should_call_tool": false,
+        "expected_calls": [],
+        "trap": "recommend缺必填category，正解=澄清问类目，而非空调或乱选类目"
     },
     {
         "id": "case_061",
