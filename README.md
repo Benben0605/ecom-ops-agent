@@ -33,11 +33,22 @@ cp .env.example .env   # 填入 API key
 python main.py
 ```
 
+## 评估 Dashboard
+跑完评估后启动 API 服务：
+```bash
+python3 -m src.eval_answer_runner
+python3 -m src.eval_judge
+uvicorn src.api:app --reload
+```
+
+打开 `http://127.0.0.1:8000/dashboard` 查看路由准确率、误触发率、bucket/工具拆解，以及每个路由错误或误触发 case 的评估集期望、工具审计和会话消息追溯。
+
 ## 目录
 ```
 src/agent.py        Orchestrator / Agent loop
 src/tools/          工具集（query_order / kb_search ...）
 src/config.py       配置（模型、API base_url 等）
+src/dashboard.py    评估 Dashboard 数据聚合
 data/orders.json    mock 订单数据
 data/faq/           电商 FAQ 知识源
 main.py             CLI 入口
