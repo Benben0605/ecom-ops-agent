@@ -1,6 +1,6 @@
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
-from uuid import uuid4
 
 import chromadb
 from openai import OpenAI
@@ -30,7 +30,7 @@ def init_chunks_embeddings(path: Path):
     for section in raw_text.split("\n## ")[1:]:
         heading, _, content = section.partition("\n")
         chunks.append(Chunk(
-            id=uuid4().hex,
+            id=hashlib.md5(f"{path.name}::{heading}::{content}".encode()).hexdigest(),
             content=content.strip(),
             heading=heading,
             )
