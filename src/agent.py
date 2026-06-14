@@ -1,4 +1,3 @@
-from pathlib import Path
 import time
 from uuid import uuid4
 
@@ -7,8 +6,9 @@ from src.schemas.query_order_schema import QUERY_ORDER_SCHEMA
 from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
 from src.schemas.recommend_product_schema import RECOMMEND_PRODUCT_SCHEMA
 from src.schemas.analyze_ops_schema import ANALYZE_OPS_SCHEMA
+from src.schemas.escalate_to_human_schema import ESCALATE_TO_HUMAN_SCHEMA
 from src import config
-from src.tools import kb_search, query_order, recommend_product, analyze_ops
+from src.tools import kb_search, query_order, recommend_product, analyze_ops, escalate_to_human
 import json
 
 from src.audit import ToolAudit, AuditRecorder
@@ -20,10 +20,11 @@ TOOLS = {
     "kb_search": kb_search.run,
     "recommend_product": recommend_product.run,
     "analyze_ops": analyze_ops.run,
+    "escalate_to_human": escalate_to_human.run,
 }
 
-tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA]
-_system_prompt = "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于根据用户角色，利用工具解决问题。必填参数齐全时直接调用工具，不要因为选填参数缺失而反问。若没有任何工具能满足请求，礼貌说明暂不支持，不要硬调最接近的工具兜底。"
+tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA, ESCALATE_TO_HUMAN_SCHEMA]
+_system_prompt = "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于利用工具解决问题。必填参数齐全时直接调用工具，不要因为选填参数缺失而反问。如果是电商业务相关但无工具，调用 escalate_to_human 转人工，不要硬调最接近的工具兜底。"
 
 class ChatSession():
     """单会话多轮对话，内置工具路由与历史压缩。
