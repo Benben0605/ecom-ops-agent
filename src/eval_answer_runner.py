@@ -119,13 +119,13 @@ def multi_agent_run():
 
 if __name__ == "__main__":
     # 跑所有评估集case(单Agent)
-    #  eval_answer_run()
+    eval_answer_run()
     
     # 跑多次per-case（单Agent）
-    #  per_case_run("case_006", 20)
+    # per_case_run("case_041", 3)
     
     # 跑多次per-case（多Agent）
-    # multi_agent_per_case("case_017", 1)
+    # multi_agent_per_case("case_041", 2)
 
     # 跑所有评估集case（多Agent）
-    multi_agent_run()
+    # multi_agent_run()

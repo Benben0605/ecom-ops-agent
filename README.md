@@ -116,6 +116,18 @@ uvicorn src.api:app --reload
 
 打开 `http://127.0.0.1:8000/dashboard`：路由准确率 / 误触发率、bucket 与工具拆解，以及每条错误 case 的「评估期望 / 工具审计 / 会话消息」三方追溯。
 
+### L2 Dashboard 2.0
+
+L2 独立评估最终回复的两个轴：golden point 的要点命中率，以及 answer 中事实断言相对 tool output 池的忠实度。
+
+```bash
+python3 -m src.eval_answer_runner
+python3 -m src.eval_l2_judge       # 输出 logs/l2_eval_result.json
+uvicorn src.api:app --reload
+```
+
+打开 `http://127.0.0.1:8000/l2-dashboard`。页面按 `miss` / `unsupported` 筛选问题 case，支持 bucket 拆解，并在详情中展示 question、answer、tool_outputs、golden_points、bucket 五件套。原 1.0 Dashboard 仍保留在 `/dashboard`。
+
 单 Agent vs 多 Agent 对比：`python3 -m src.eval_compare`。
 
 ## 目录
@@ -127,9 +139,11 @@ src/schemas/              各工具的 LLM function-calling schema
 src/audit.py              ToolAudit + AuditRecorder / NoOpRecorder / MessageRecorder
 src/eval_answer_runner.py 评估 runner（bootstrap，建 run_map）
 src/eval_judge.py         判分器（Counter 口径，三方 JOIN）
+src/eval_l2_judge.py      L2 判分器（要点命中率 + 忠实度）
 src/eval_compare.py       单 Agent vs 多 Agent 对比
 src/dashboard.py          评估 Dashboard 数据聚合
-src/api.py                FastAPI（/chat + 静态前端 + /dashboard）
+src/l2_dashboard.py       L2 Dashboard 2.0 数据聚合
+src/api.py                FastAPI（/chat + /dashboard + /l2-dashboard）
 data/eval_cases.json      评估集（62 条，带 bucket / trap）
 data/orders.json          mock 订单（一份喂 query_order + analyze_ops）
 logs/audit.jsonl          工具审计日志

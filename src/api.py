@@ -8,6 +8,7 @@ import uvicorn
 
 from src.agent import ChatSession
 from src.dashboard import build_dashboard_data
+from src.l2_dashboard import build_l2_dashboard_data
 
 app = FastAPI()
 _sessions: dict[str,ChatSession] = {}
@@ -40,10 +41,24 @@ def chat_endpoint(request: RequestMessage) -> ResponseMessage:
 def eval_dashboard_endpoint() -> dict:
     return build_dashboard_data()
 
+
+@app.get("/api/l2-eval-dashboard")
+def l2_eval_dashboard_endpoint() -> dict:
+    return build_l2_dashboard_data()
+
+
 @app.get("/dashboard")
 def dashboard_page() -> FileResponse:
     return FileResponse(
         _static_dir / "dashboard.html",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/l2-dashboard")
+def l2_dashboard_page() -> FileResponse:
+    return FileResponse(
+        _static_dir / "l2-dashboard.html",
         headers={"Cache-Control": "no-store"},
     )
 
