@@ -74,7 +74,8 @@ JUDGE_SYSTEM_PROMPT = """
     "hit_axis": [
         {
             "point": "<golden point 原文>", 
-            "verdict": "hit | miss"
+            "verdict": "hit | miss",
+            "evidence": "<支撑它的那段 assistant answer 原文；miss 留空>"
         }
     ],
     "faithfulness_axis": [
