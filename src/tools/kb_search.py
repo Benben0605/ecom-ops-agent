@@ -29,6 +29,7 @@ def init_chunks_embeddings(path: Path):
     chunks: list[Chunk] = []
     for section in raw_text.split("\n## ")[1:]:
         heading, _, content = section.partition("\n")
+        heading=f"## {heading}"
         chunks.append(Chunk(
             id=hashlib.md5(f"{path.name}::{heading}::{content}".encode()).hexdigest(),
             content=content.strip(),
@@ -61,7 +62,8 @@ def run(query: str, top_k: int=3) -> str:
         n_results=top_k,
         include=["documents", "metadatas"],
     )
-    return "\n".join(f"{m['heading']}\n{d}" for m, d in zip(result["metadatas"][0], result["documents"][0]))
+    return "\n\n".join(f"{m['heading']}\n{d}" for m, d in zip(result["metadatas"][0], result["documents"][0]))
 
 if __name__ == "__main__":
-    run(query="七天可以退货吗", top_k=1)
+    result = run(query="食品能退吗", top_k=3)
+    print(f"query: 食品能退吗 , kb_search return: {result}")
