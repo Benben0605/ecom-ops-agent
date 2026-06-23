@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,10 +13,24 @@ ROOT = Path(__file__).parents[1]
 # 只有事实桶才有 golden、才进 L2；clarify/negative/weakness 缺席即信号
 FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing"}
 
+# orders.json 是冻结的 eval fixture：部分 golden 按订单状态 key（如已签收/已取消单删 eta，
+# 见 case_021/044）。数据一旦改动，这些状态相关的 golden 可能烂掉，必须复核后更新此哈希。
+# 守卫的是「改了数据却没复核 golden」的静默漂移（A 方案，详见招牌点 L2-21）。
+_ORDERS_FROZEN_SHA256 = "5342675ce9bdd39c6b943d889b88be8e96000a23ce2c8d7697f4f347a0dd3acf"
+
+
+def assert_eval_data_frozen() -> None:
+    cur = hashlib.sha256((ROOT / "data" / "orders.json").read_bytes()).hexdigest()
+    assert cur == _ORDERS_FROZEN_SHA256, (
+        "orders.json 已变更——它是冻结的 eval fixture。请复核按订单状态 key 的 golden"
+        "（已签收/已取消单的 eta，case_021/044 等），确认无误后把 _ORDERS_FROZEN_SHA256 更新为新哈希。"
+    )
+
 
 def load_l2_inputs() -> dict[str, dict]:
     """组装每个已标 golden 的事实桶 case 的 judge 三件套。
     返回 {case_id: {question, answer, tool_outputs(池), golden_points, bucket}}"""
+    assert_eval_data_frozen()
     cases = json.loads((ROOT / "data" / "eval_cases.json").read_text(encoding="utf-8"))
     run_map = json.loads((ROOT / "logs" / "run_map.json").read_text(encoding="utf-8"))
 
@@ -74,6 +89,11 @@ JUDGE_SYSTEM_PROMPT = """
     「原路退回」），别因用词不同就判红。但【不同政策条目不是近义】：退货≠换货、7天≠15天、
     质量问题≠非质量问题——它们是不同事实，断言把它们张冠李戴（如把池里的『质量问题换货』说成
     『质量问题退货』）哪怕只差一字也判 unsupported。evidence 引那段原文。
+    【商品描述：同向近义 + 一步品类外推算支撑】对商品 highlight/名称的断言，凡是同向近义、或由
+    池里特征一步推出的品类/用途，都算支撑（如「防滑」支撑「稳固」、「深层补水」支撑「对付干燥」）。
+    但【引入池里没有、甚至反向的新属性不算】——是凭空加戏，判 unsupported（如 highlight 只说
+    「控油/清爽」却称商品「保湿」：控油≠保湿、方向相反）。注意此条只放宽「商品描述」域，上面
+    「不同政策条目」的严格边界不受影响。
     【逐段核，再判红】tool_outputs 已按「## 标题」分段。判一条 unsupported 之前，必须逐个 ##
     段过一遍，确认每一段都找不到任何语义依据，才能判 unsupported；只要任一段对得上就判 supported，
     evidence 连同所在 ## 标题一起引出来。依据常埋在长文、跨多行，别一眼扫过就判红。
