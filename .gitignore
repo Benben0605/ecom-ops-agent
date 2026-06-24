@@ -4,6 +4,7 @@ __pycache__/
 .env
 .DS_Store
 .chroma/
+.obsidian/
 *.egg-info/
 .claude/
 
@@ -14,3 +15,10 @@ logs/
 /docs/
 /DAILY_SCHEDULE.md
 /PROGRESS.md
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts

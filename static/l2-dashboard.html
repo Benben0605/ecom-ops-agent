@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>L2 Eval Dashboard 2.0</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --panel: #ffffff;
+      --text: #162033;
+      --muted: #68758a;
+      --line: #dfe5ed;
+      --line-soft: #edf1f5;
+      --navy: #14213d;
+      --blue: #275dd7;
+      --blue-soft: #edf3ff;
+      --green: #137a4a;
+      --green-soft: #eaf7f0;
+      --red: #c73838;
+      --red-soft: #fff0ef;
+      --amber: #a9660c;
+      --amber-soft: #fff5df;
+      --shadow: 0 1px 2px rgba(20, 33, 61, .05);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+    }
+
+    button, input, select { font: inherit; }
+    a { color: inherit; text-decoration: none; }
+
+    header {
+      min-height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 10px 24px;
+      color: #fff;
+      background: var(--navy);
+      border-bottom: 1px solid rgba(255, 255, 255, .12);
+    }
+
+    .brand { min-width: 0; }
+    .brand-row { display: flex; align-items: baseline; gap: 9px; }
+    .brand h1 { margin: 0; font-size: 17px; letter-spacing: .01em; }
+    .version {
+      padding: 2px 7px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 999px;
+      color: #cdd9f0;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .brand p { margin: 4px 0 0; color: #9fb0ce; font-size: 12px; }
+
+    nav { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    nav a, nav button {
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 11px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 7px;
+      background: transparent;
+      color: #dce5f5;
+      cursor: pointer;
+    }
+    nav a:hover, nav button:hover { border-color: rgba(255, 255, 255, .45); color: #fff; }
+
+    main { padding: 18px 24px 28px; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(140px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      min-width: 0;
+      padding: 13px 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      box-shadow: var(--shadow);
+    }
+    .metric-label { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+    .metric-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--blue); }
+    .metric-dot.green { background: var(--green); }
+    .metric-dot.red { background: var(--red); }
+    .metric-value { display: block; margin-top: 9px; font-size: 26px; line-height: 1; letter-spacing: -.02em; }
+    .metric-hint { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; }
+
+    .overview {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(360px, .72fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .panel {
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      box-shadow: var(--shadow);
+    }
+    .panel-head {
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .panel-head h2 { margin: 0; font-size: 14px; }
+    .panel-head p { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+    .panel-body { padding: 13px 14px; }
+
+    .axis-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .axis-card { padding: 12px; border: 1px solid var(--line-soft); border-radius: 8px; }
+    .axis-card strong { display: block; margin-bottom: 5px; font-size: 13px; }
+    .axis-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .formula { margin-top: 9px; padding: 7px 9px; background: var(--bg); border-radius: 6px; color: #44516a; font-size: 11px; }
+
+    .mini-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .mini-table th, .mini-table td { padding: 8px 7px; border-bottom: 1px solid var(--line-soft); text-align: left; }
+    .mini-table th { padding-top: 0; color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .mini-table tr:last-child td { border-bottom: 0; }
+    .rate-cell { min-width: 95px; }
+    .bar { width: 100%; height: 5px; margin-bottom: 4px; overflow: hidden; background: #e9edf3; border-radius: 999px; }
+    .bar span { display: block; height: 100%; background: var(--blue); }
+    .bar.green span { background: var(--green); }
+
+    .workspace { display: grid; grid-template-columns: minmax(580px, .95fr) minmax(420px, 1.05fr); gap: 14px; align-items: start; }
+    .case-panel { overflow: hidden; }
+    .filters { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+    .filters button, .filters input, .filters select {
+      height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: var(--text);
+    }
+    .filters button { padding: 0 10px; cursor: pointer; }
+    .filters button.active { border-color: var(--blue); background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+    .filters select { width: 128px; padding: 0 8px; }
+    .filters input { width: 195px; padding: 0 9px; }
+    .case-table-wrap { max-height: calc(100vh - 330px); overflow: auto; }
+    .case-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 12px; }
+    .case-table th, .case-table td { padding: 10px 9px; border-bottom: 1px solid var(--line-soft); text-align: left; vertical-align: middle; }
+    .case-table th { position: sticky; top: 0; z-index: 2; background: #f9fafc; color: var(--muted); font-weight: 600; }
+    .case-table tbody tr { cursor: pointer; }
+    .case-table tbody tr:hover td { background: #fafbfc; }
+    .case-table tbody tr.selected td { background: var(--blue-soft); }
+    .case-id { color: var(--blue); font-weight: 700; white-space: nowrap; }
+    .case-question { max-width: 290px; line-height: 1.45; }
+    .score { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 23px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #eef1f5;
+      color: #536075;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .chip.green { background: var(--green-soft); color: var(--green); }
+    .chip.red { background: var(--red-soft); color: var(--red); }
+    .chip.amber { background: var(--amber-soft); color: var(--amber); }
+    .chip.blue { background: var(--blue-soft); color: var(--blue); }
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+
+    .detail { position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
+    .detail .panel-head { position: sticky; top: 0; z-index: 3; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); }
+    .detail-title { min-width: 0; }
+    .detail-title h2 { overflow-wrap: anywhere; }
+    .detail-title p { overflow-wrap: anywhere; }
+
+    .section { padding: 14px; border-bottom: 1px solid var(--line); }
+    .section:last-child { border-bottom: 0; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .section-title h3 { margin: 0; font-size: 13px; }
+    .section-title span { color: var(--muted); font-size: 11px; }
+
+    .verdict-list { display: flex; flex-direction: column; gap: 7px; }
+    .verdict-row { padding: 10px; border: 1px solid var(--line-soft); border-left-width: 3px; border-radius: 7px; }
+    .verdict-row.hit, .verdict-row.supported { border-left-color: var(--green); }
+    .verdict-row.miss, .verdict-row.unsupported { border-color: #f3ceca; border-left-color: var(--red); background: #fffafa; }
+    .verdict-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .verdict-text { line-height: 1.5; overflow-wrap: anywhere; }
+    .evidence { margin-top: 8px; padding: 8px 9px; background: var(--green-soft); border-radius: 6px; color: #275a43; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+    .evidence.empty-evidence { background: var(--red-soft); color: var(--red); }
+
+    .context-grid { display: grid; grid-template-columns: 82px minmax(0, 1fr); border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
+    .context-label, .context-value { padding: 10px; border-bottom: 1px solid var(--line-soft); }
+    .context-label { color: var(--muted); background: #fafbfc; font-size: 11px; font-weight: 700; }
+    .context-value { line-height: 1.55; overflow-wrap: anywhere; }
+    .context-grid > :nth-last-child(-n + 2) { border-bottom: 0; }
+    .text-block { margin: 0; white-space: pre-wrap; font: inherit; line-height: 1.6; overflow-wrap: anywhere; }
+    .markdown-body { color: var(--text); font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+    .markdown-body > :first-child { margin-top: 0; }
+    .markdown-body > :last-child { margin-bottom: 0; }
+    .markdown-body h1,
+    .markdown-body h2,
+    .markdown-body h3,
+    .markdown-body h4,
+    .markdown-body h5,
+    .markdown-body h6 {
+      margin: 18px 0 8px;
+      color: var(--text);
+      line-height: 1.35;
+    }
+    .markdown-body h1 { font-size: 20px; }
+    .markdown-body h2 { font-size: 18px; }
+    .markdown-body h3 { font-size: 16px; }
+    .markdown-body h4,
+    .markdown-body h5,
+    .markdown-body h6 { font-size: 14px; }
+    .markdown-body p { margin: 0 0 10px; }
+    .markdown-body ul,
+    .markdown-body ol { margin: 0 0 12px; padding-left: 24px; }
+    .markdown-body li { margin: 3px 0; padding-left: 2px; }
+    .markdown-body hr { margin: 16px 0; border: 0; border-top: 1px solid var(--line); }
+    .markdown-body blockquote {
+      margin: 10px 0;
+      padding: 7px 11px;
+      border-left: 3px solid #9eb6e8;
+      background: var(--blue-soft);
+      color: #44516a;
+    }
+    .markdown-body code {
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #eef1f5;
+      color: #344158;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .markdown-body pre {
+      margin: 10px 0;
+      padding: 10px;
+      overflow: auto;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: #f8fafc;
+      white-space: pre;
+    }
+    .markdown-body pre code { padding: 0; background: transparent; }
+    .markdown-table-wrap { max-width: 100%; margin: 10px 0 12px; overflow-x: auto; }
+    .markdown-body table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 13px; }
+    .markdown-body th,
+    .markdown-body td { padding: 7px 9px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    .markdown-body th { background: #f7f9fc; font-weight: 700; }
+    .numbered-list { display: flex; flex-direction: column; gap: 7px; }
+    .numbered-item { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 6px; }
+    .number { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue); font-size: 10px; font-weight: 700; }
+    details { border: 1px solid var(--line-soft); border-radius: 7px; overflow: hidden; }
+    details + details { margin-top: 7px; }
+    summary { padding: 8px 9px; background: #fafbfc; cursor: pointer; color: #44516a; font-size: 12px; font-weight: 600; }
+    details pre { margin: 0; padding: 9px; border-top: 1px solid var(--line-soft); background: #fff; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .empty { padding: 34px 16px; color: var(--muted); text-align: center; }
+    .error { margin: 14px; padding: 12px; border: 1px solid #efc2bd; border-radius: 7px; background: var(--red-soft); color: var(--red); }
+    .muted { color: var(--muted); }
+
+    @media (max-width: 1260px) {
+      .metrics { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+      .workspace { grid-template-columns: 1fr; }
+      .case-table-wrap { max-height: none; }
+      .detail { position: static; max-height: none; }
+    }
+    @media (max-width: 800px) {
+      header { align-items: flex-start; padding: 12px 14px; }
+      nav { flex-wrap: wrap; justify-content: flex-end; }
+      main { padding: 12px; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+      .overview { grid-template-columns: 1fr; }
+      .axis-legend { grid-template-columns: 1fr; }
+      .panel-head { align-items: flex-start; flex-direction: column; }
+      .filters { width: 100%; }
+      .filters input { flex: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-row">
+        <h1>L2 Eval Dashboard</h1>
+        <span class="version">2.0</span>
+      </div>
+      <p id="subtitle">Answer quality · 要点命中率 + 忠实度</p>
+    </div>
+    <nav>
+      <a href="/dashboard">Dashboard 1.0</a>
+      <a href="/">聊天工作台</a>
+      <button id="refresh" type="button">刷新结果</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="metrics" id="metrics"></section>
+
+    <section class="overview">
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>评估口径</h2><p>两个轴独立判定；整体数据按评估项加权聚合</p></div>
+        </div>
+        <div class="panel-body axis-legend">
+          <div class="axis-card">
+            <strong>要点命中率</strong>
+            <p>逐条检查 golden point 是否在 answer 中得到表达，结果为 hit / miss。</p>
+            <div class="formula">hit 数 ÷ golden point 总数</div>
+          </div>
+          <div class="axis-card">
+            <strong>忠实度</strong>
+            <p>逐条检查 answer 中的事实断言是否能被 tool_outputs 池支撑，结果为 supported / unsupported。</p>
+            <div class="formula">supported 数 ÷ 事实断言总数</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div><h2>Bucket 表现</h2><p>定位问题集中在哪类 case</p></div>
+        </div>
+        <div class="panel-body" id="bucketBreakdown"></div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel case-panel">
+        <div class="panel-head">
+          <div><h2>Case 追溯</h2><p id="caseCount">按失败项优先排列</p></div>
+          <div class="filters">
+            <button type="button" data-filter="issues" class="active">问题</button>
+            <button type="button" data-filter="miss">要点 Miss</button>
+            <button type="button" data-filter="unsupported">不忠实</button>
+            <button type="button" data-filter="pass">通过</button>
+            <button type="button" data-filter="all">全部</button>
+            <select id="bucketFilter" aria-label="Bucket 过滤"></select>
+            <input id="search" type="search" placeholder="搜索 case / 问题 / 判定项" aria-label="搜索 case" />
+          </div>
+        </div>
+        <div class="case-table-wrap">
+          <table class="case-table">
+            <thead>
+              <tr>
+                <th>Case</th>
+                <th>Bucket</th>
+                <th>Question</th>
+                <th>要点命中</th>
+                <th>忠实度</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody id="caseRows"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <aside class="panel detail" id="detail">
+        <div class="empty">选择一个 case 查看 L2 判定详情</div>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      data: null,
+      filter: "issues",
+      bucket: "all",
+      search: "",
+      selectedCaseId: "",
+    };
+
+    const metricsEl = document.getElementById("metrics");
+    const bucketEl = document.getElementById("bucketBreakdown");
+    const caseRowsEl = document.getElementById("caseRows");
+    const detailEl = document.getElementById("detail");
+    const bucketFilterEl = document.getElementById("bucketFilter");
+    const searchEl = document.getElementById("search");
+    const subtitleEl = document.getElementById("subtitle");
+    const caseCountEl = document.getElementById("caseCount");
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function percent(value) {
+      return value === null || value === undefined ? "N/A" : `${(Number(value) * 100).toFixed(1)}%`;
+    }
+
+    function renderInlineMarkdown(value) {
+      return escapeHtml(value)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+        .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+        .replace(/_([^_\n]+)_/g, "<em>$1</em>");
+    }
+
+    function markdownTableCells(line) {
+      return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
+    }
+
+    function isMarkdownTableDivider(line) {
+      const cells = markdownTableCells(line);
+      return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function isMarkdownBlockStart(lines, index) {
+      const line = lines[index] || "";
+      const nextLine = lines[index + 1] || "";
+      return /^\s*```/.test(line)
+        || /^#{1,6}\s+/.test(line)
+        || /^\s*((\*|-|_)\s*){3,}$/.test(line)
+        || /^\s*[-*+]\s+/.test(line)
+        || /^\s*\d+[.)]\s+/.test(line)
+        || /^\s*>\s?/.test(line)
+        || (line.includes("|") && isMarkdownTableDivider(nextLine));
+    }
+
+    function renderMarkdown(value) {
+      const lines = String(value ?? "").replaceAll("\r\n", "\n").split("\n");
+      const blocks = [];
+      let index = 0;
+
+      while (index < lines.length) {
+        const line = lines[index];
+        if (!line.trim()) {
+          index += 1;
+          continue;
+        }
+
+        const fence = line.match(/^\s*```([^\s`]*)\s*$/);
+        if (fence) {
+          const code = [];
+          index += 1;
+          while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) {
+            code.push(lines[index]);
+            index += 1;
+          }
+          if (index < lines.length) index += 1;
+          blocks.push(`<pre><code${fence[1] ? ` data-language="${escapeHtml(fence[1])}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`);
+          continue;
+        }
+
+        const heading = line.match(/^(#{1,6})\s+(.+)$/);
+        if (heading) {
+          const level = heading[1].length;
+          blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+          index += 1;
+          continue;
+        }
+
+        if (/^\s*((\*|-|_)\s*){3,}$/.test(line)) {
+          blocks.push("<hr>");
+          index += 1;
+          continue;
+        }
+
+        if (line.includes("|") && isMarkdownTableDivider(lines[index + 1] || "")) {
+          const headers = markdownTableCells(line);
+          index += 2;
+          const rows = [];
+          while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+            rows.push(markdownTableCells(lines[index]));
+            index += 1;
+          }
+          blocks.push(`<div class="markdown-table-wrap"><table><thead><tr>${headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${headers.map((_, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`);
+          continue;
+        }
+
+        if (/^\s*[-*+]\s+/.test(line)) {
+          const items = [];
+          while (index < lines.length) {
+            const item = lines[index].match(/^\s*[-*+]\s+(.+)$/);
+            if (!item) break;
+            items.push(item[1]);
+            index += 1;
+          }
+          blocks.push(`<ul>${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ul>`);
+          continue;
+        }
+
+        if (/^\s*\d+[.)]\s+/.test(line)) {
+          const items = [];
+          while (index < lines.length) {
+            const item = lines[index].match(/^\s*\d+[.)]\s+(.+)$/);
+            if (!item) break;
+            items.push(item[1]);
+            index += 1;
+          }
+          blocks.push(`<ol>${items.map((item) => `<li>${renderInlineMarkdown(item)}</li>`).join("")}</ol>`);
+          continue;
+        }
+
+        if (/^\s*>\s?/.test(line)) {
+          const quoted = [];
+          while (index < lines.length && /^\s*>\s?/.test(lines[index])) {
+            quoted.push(lines[index].replace(/^\s*>\s?/, ""));
+            index += 1;
+          }
+          blocks.push(`<blockquote>${quoted.map(renderInlineMarkdown).join("<br>")}</blockquote>`);
+          continue;
+        }
+
+        const paragraph = [];
+        while (index < lines.length && lines[index].trim() && !isMarkdownBlockStart(lines, index)) {
+          paragraph.push(lines[index]);
+          index += 1;
+        }
+        if (!paragraph.length) {
+          paragraph.push(lines[index]);
+          index += 1;
+        }
+        blocks.push(`<p>${paragraph.map(renderInlineMarkdown).join("<br>")}</p>`);
+      }
+
+      return blocks.join("");
+    }
+
+    function formatDate(value) {
+      if (!value) return "尚未生成结果";
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
+    }
+
+    function metricCard(label, value, hint, tone = "") {
+      return `<div class="metric">
+        <span class="metric-label"><span class="metric-dot ${tone}"></span>${escapeHtml(label)}</span>
+        <strong class="metric-value">${escapeHtml(value)}</strong>
+        <small class="metric-hint">${escapeHtml(hint)}</small>
+      </div>`;
+    }
+
+    function renderMetrics() {
+      const m = state.data.metrics;
+      metricsEl.innerHTML = [
+        metricCard("要点命中率", percent(m.hit_rate), `${m.hit_ok}/${m.hit_total} golden points`, "green"),
+        metricCard("忠实度", percent(m.faithfulness_rate), `${m.faith_ok}/${m.faith_total} factual assertions`, "green"),
+        metricCard("问题 Case", m.issue_case_count, `${m.hit_issue_case_count} 个命中问题 · ${m.faith_issue_case_count} 个忠实问题`, "red"),
+        metricCard("Case 通过率", percent(m.case_pass_rate), `${m.passed_case_count}/${m.case_count} case`, "blue"),
+        metricCard("L2 Case 数", m.case_count, "仅统计 l2_eval_result.json", "blue"),
+      ].join("");
+
+      subtitleEl.textContent = state.data.source.exists
+        ? `Answer quality · 结果更新于 ${formatDate(state.data.source.modified_at)}`
+        : "Answer quality · 尚未找到 l2_eval_result.json";
+    }
+
+    function rateBar(value, tone = "") {
+      const width = value === null || value === undefined ? 0 : Math.round(value * 100);
+      return `<div class="rate-cell"><div class="bar ${tone}"><span style="width:${width}%"></span></div>${percent(value)}</div>`;
+    }
+
+    function renderBuckets() {
+      const rows = state.data.breakdowns.by_bucket;
+      if (!rows.length) {
+        bucketEl.innerHTML = '<div class="empty">暂无 Bucket 数据</div>';
+        return;
+      }
+      bucketEl.innerHTML = `<table class="mini-table">
+        <thead><tr><th>Bucket</th><th>Case</th><th>命中率</th><th>忠实度</th><th>问题</th></tr></thead>
+        <tbody>${rows.map((row) => `<tr>
+          <td><strong>${escapeHtml(row.bucket)}</strong></td>
+          <td>${row.case_count}</td>
+          <td>${rateBar(row.hit_rate)}</td>
+          <td>${rateBar(row.faithfulness_rate, "green")}</td>
+          <td>${row.issue_case_count}</td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+    }
+
+    function renderBucketOptions() {
+      const buckets = [...new Set(state.data.cases.map((row) => row.bucket))].sort();
+      bucketFilterEl.innerHTML = [
+        '<option value="all">全部 Bucket</option>',
+        ...buckets.map((bucket) => `<option value="${escapeHtml(bucket)}">${escapeHtml(bucket)}</option>`),
+      ].join("");
+      bucketFilterEl.value = state.bucket;
+    }
+
+    function caseMatches(row) {
+      if (state.bucket !== "all" && row.bucket !== state.bucket) return false;
+      if (state.filter === "issues" && !row.has_issue) return false;
+      if (state.filter === "miss" && !row.has_hit_issue) return false;
+      if (state.filter === "unsupported" && !row.has_faith_issue) return false;
+      if (state.filter === "pass" && row.has_issue) return false;
+
+      const keyword = state.search.trim().toLowerCase();
+      if (!keyword) return true;
+      const hitText = row.hit_axis.map((item) => `${item.point} ${item.verdict}`).join(" ");
+      const faithText = row.faithfulness_axis.map((item) => `${item.assertion} ${item.verdict} ${item.evidence || ""}`).join(" ");
+      return [row.case_id, row.bucket, row.question, row.answer, hitText, faithText]
+        .join(" ").toLowerCase().includes(keyword);
+    }
+
+    function filteredCases() {
+      return state.data.cases.filter(caseMatches);
+    }
+
+    function statusChips(row) {
+      if (!row.has_issue) return '<span class="chip green">通过</span>';
+      const items = [];
+      if (row.miss_count) items.push(`<span class="chip red">${row.miss_count} miss</span>`);
+      if (row.unsupported_count) items.push(`<span class="chip red">${row.unsupported_count} unsupported</span>`);
+      return `<div class="chips">${items.join("")}</div>`;
+    }
+
+    function renderCases() {
+      const rows = filteredCases();
+      caseCountEl.textContent = `${rows.length}/${state.data.cases.length} case · 问题优先排列`;
+      if (!rows.length) {
+        caseRowsEl.innerHTML = '<tr><td colspan="6"><div class="empty">当前过滤条件下没有 case</div></td></tr>';
+        detailEl.innerHTML = '<div class="empty">没有可追溯的 case</div>';
+        return;
+      }
+      if (!rows.some((row) => row.case_id === state.selectedCaseId)) state.selectedCaseId = rows[0].case_id;
+
+      caseRowsEl.innerHTML = rows.map((row) => `<tr data-case-id="${escapeHtml(row.case_id)}" class="${row.case_id === state.selectedCaseId ? "selected" : ""}">
+        <td><span class="case-id">${escapeHtml(row.case_id)}</span></td>
+        <td><span class="chip">${escapeHtml(row.bucket)}</span></td>
+        <td><div class="case-question">${escapeHtml(row.question)}</div></td>
+        <td class="score">${row.score.hit_ok}/${row.score.hit_total} · ${percent(row.score.hit_rate)}</td>
+        <td class="score">${row.score.faith_ok}/${row.score.faith_total} · ${percent(row.score.faithfulness_rate)}</td>
+        <td>${statusChips(row)}</td>
+      </tr>`).join("");
+
+      caseRowsEl.querySelectorAll("tr[data-case-id]").forEach((rowEl) => {
+        rowEl.addEventListener("click", () => {
+          state.selectedCaseId = rowEl.dataset.caseId;
+          renderCases();
+        });
+      });
+      renderDetail();
+    }
+
+    function verdictChip(verdict) {
+      const positive = verdict === "hit" || verdict === "supported";
+      return `<span class="chip ${positive ? "green" : "red"}">${escapeHtml(verdict)}</span>`;
+    }
+
+    function renderHitAxis(items) {
+      if (!items.length) return '<div class="muted">没有 hit_axis 判定项</div>';
+      return `<div class="verdict-list">${items.map((item, index) => `<div class="verdict-row ${escapeHtml(item.verdict)}">
+        <div class="verdict-main"><div class="verdict-text"><span class="muted">#${index + 1}</span> ${escapeHtml(item.point)}</div>${verdictChip(item.verdict)}</div>
+      </div>`).join("")}</div>`;
+    }
+
+    function renderFaithAxis(items) {
+      if (!items.length) return '<div class="muted">没有 faithfulness_axis 判定项</div>';
+      return `<div class="verdict-list">${items.map((item, index) => {
+        const supported = item.verdict === "supported";
+        return `<div class="verdict-row ${escapeHtml(item.verdict)}">
+          <div class="verdict-main"><div class="verdict-text"><span class="muted">#${index + 1}</span> ${escapeHtml(item.assertion)}</div>${verdictChip(item.verdict)}</div>
+          <div class="evidence ${supported ? "" : "empty-evidence"}">${supported ? `<strong>Evidence</strong><br>${escapeHtml(item.evidence || "未返回证据")}` : "tool_outputs 池中未找到支撑证据"}</div>
+        </div>`;
+      }).join("")}</div>`;
+    }
+
+    function renderNumberedList(items, emptyText) {
+      if (!items.length) return `<span class="muted">${escapeHtml(emptyText)}</span>`;
+      return `<div class="numbered-list">${items.map((item, index) => `<div class="numbered-item"><span class="number">${index + 1}</span><span>${escapeHtml(typeof item === "string" ? item : JSON.stringify(item))}</span></div>`).join("")}</div>`;
+    }
+
+    function renderToolOutputs(outputs) {
+      if (!outputs.length) return '<span class="muted">没有找到 tool output</span>';
+      return outputs.map((output, index) => `<details ${outputs.length === 1 ? "open" : ""}>
+        <summary>Tool output #${index + 1}</summary>
+        <pre>${escapeHtml(typeof output === "string" ? output : JSON.stringify(output, null, 2))}</pre>
+      </details>`).join("");
+    }
+
+    function renderDetail() {
+      const row = state.data.cases.find((item) => item.case_id === state.selectedCaseId);
+      if (!row) {
+        detailEl.innerHTML = '<div class="empty">选择一个 case 查看 L2 判定详情</div>';
+        return;
+      }
+
+      detailEl.innerHTML = `<div class="panel-head">
+        <div class="detail-title">
+          <h2>${escapeHtml(row.case_id)} · ${escapeHtml(row.bucket)}</h2>
+          <p>命中 ${row.score.hit_ok}/${row.score.hit_total} · 忠实 ${row.score.faith_ok}/${row.score.faith_total}</p>
+        </div>
+        ${statusChips(row)}
+      </div>
+
+      <section class="section">
+        <div class="section-title"><h3>要点命中追溯</h3><span>golden point → hit / miss</span></div>
+        ${renderHitAxis(row.hit_axis)}
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h3>忠实度追溯</h3><span>assertion → evidence</span></div>
+        ${renderFaithAxis(row.faithfulness_axis)}
+      </section>
+
+      <section class="section">
+        <div class="section-title"><h3>评估五件套</h3><span>judge 输入上下文</span></div>
+        <div class="context-grid">
+          <div class="context-label">question</div><div class="context-value"><pre class="text-block">${escapeHtml(row.question)}</pre></div>
+          <div class="context-label">answer</div><div class="context-value"><div class="markdown-body">${row.answer ? renderMarkdown(row.answer) : '<span class="muted">没有 answer</span>'}</div></div>
+          <div class="context-label">tool_outputs</div><div class="context-value">${renderToolOutputs(row.tool_outputs)}</div>
+          <div class="context-label">golden_points</div><div class="context-value">${renderNumberedList(row.golden_points, "没有 golden points")}</div>
+          <div class="context-label">bucket</div><div class="context-value"><span class="chip blue">${escapeHtml(row.bucket)}</span></div>
+        </div>
+      </section>`;
+    }
+
+    function renderAll() {
+      renderMetrics();
+      renderBuckets();
+      renderBucketOptions();
+      renderCases();
+    }
+
+    async function loadDashboard() {
+      metricsEl.innerHTML = metricCard("加载中", "…", "读取 logs/l2_eval_result.json");
+      try {
+        const response = await fetch("/api/l2-eval-dashboard", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        state.data = await response.json();
+        renderAll();
+      } catch (error) {
+        metricsEl.innerHTML = "";
+        bucketEl.innerHTML = "";
+        caseRowsEl.innerHTML = "";
+        detailEl.innerHTML = `<div class="error">L2 Dashboard 加载失败：${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    document.querySelectorAll("[data-filter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        document.querySelectorAll("[data-filter]").forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        state.filter = button.dataset.filter;
+        renderCases();
+      });
+    });
+    bucketFilterEl.addEventListener("change", () => { state.bucket = bucketFilterEl.value; renderCases(); });
+    searchEl.addEventListener("input", () => { state.search = searchEl.value; renderCases(); });
+    document.getElementById("refresh").addEventListener("click", loadDashboard);
+
+    loadDashboard();
+  </script>
+</body>
+</html>

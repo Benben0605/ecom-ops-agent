@@ -29,6 +29,7 @@ def init_chunks_embeddings(path: Path):
     chunks: list[Chunk] = []
     for section in raw_text.split("\n## ")[1:]:
         heading, _, content = section.partition("\n")
+        heading=f"## {heading}"
         chunks.append(Chunk(
             id=hashlib.md5(f"{path.name}::{heading}::{content}".encode()).hexdigest(),
             content=content.strip(),
@@ -47,7 +48,7 @@ def init_chunks_embeddings(path: Path):
     )
 
 def run(query: str, top_k: int=3) -> str:
-    # TODO(你来写 · Week1-Step4)：基础 RAG 检索
+    # 基础 RAG 检索
     #   1. 加载 data/faq/ 下的文档并切分成块
     #   2. embedding + 存向量库（如 chroma），首次构建后可缓存
     #   3. 用 query 检索 top-k，拼成上下文字符串返回
@@ -61,7 +62,8 @@ def run(query: str, top_k: int=3) -> str:
         n_results=top_k,
         include=["documents", "metadatas"],
     )
-    return "\n".join(f"{m['heading']}\n{d}" for m, d in zip(result["metadatas"][0], result["documents"][0]))
+    return "\n\n".join(f"{m['heading']}\n{d}" for m, d in zip(result["metadatas"][0], result["documents"][0]))
 
 if __name__ == "__main__":
-    run(query="七天可以退货吗", top_k=1)
+    result = run(query="食品能退吗", top_k=3)
+    print(f"query: 食品能退吗 , kb_search return: {result}")

@@ -15,3 +15,5 @@ README.md
 Dockerfile
 .dockerignore
 uv.lock
+frontend/node_modules/
+frontend/dist/
