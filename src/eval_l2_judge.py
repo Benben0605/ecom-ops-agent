@@ -1,5 +1,6 @@
 import hashlib
 import json
+import time
 from pathlib import Path
 
 from openai import OpenAI
@@ -132,17 +133,25 @@ def build_user_payload(item: dict) -> str:
     )
 
 
-def judge_one(item: dict) -> dict:
-    resp = client.chat.completions.create(
-        model=config.MODEL,
-        messages=[
-            {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
-            {"role": "user", "content": build_user_payload(item)},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0,
-    )
-    return json.loads(resp.choices[0].message.content)
+def judge_one(item: dict, _max_retries: int = 3) -> dict:
+    last_err = None
+    for attempt in range(_max_retries):
+        try:
+            resp = client.chat.completions.create(
+                model=config.MODEL,
+                messages=[
+                    {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+                    {"role": "user", "content": build_user_payload(item)},
+                ],
+                response_format={"type": "json_object"},
+                temperature=0,
+                timeout=180,  # 单次挂死防护：慢端点下别让一次请求无限阻塞
+            )
+            return json.loads(resp.choices[0].message.content)
+        except Exception as e:  # 超时/网络/JSON 解析失败都重试
+            last_err = e
+            time.sleep(2 * (attempt + 1))
+    raise last_err
 
 
 def score_one(verdict: dict) -> dict:
@@ -164,7 +173,12 @@ def run_l2():
     inputs = load_l2_inputs()
     results = {}
     for case_id, item in inputs.items():
-        verdict = judge_one(item)
+        try:
+            verdict = judge_one(item)
+        except Exception as e:  # 单 case 失败不拖垮整轮（无人值守过夜）
+            results[case_id] = {"bucket": item["bucket"], "question": item["question"],
+                                "answer": item["answer"], "error": str(e)}
+            continue
         results[case_id] = {
             "bucket": item["bucket"],
             "question": item["question"],
