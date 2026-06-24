@@ -126,7 +126,7 @@ python3 -m src.eval_l2_judge       # 输出 logs/l2_eval_result.json
 uvicorn src.api:app --reload
 ```
 
-打开 `http://127.0.0.1:8000/l2-dashboard`。页面按 `miss` / `unsupported` 筛选问题 case，支持 bucket 拆解，并在详情中展示 question、answer、tool_outputs、golden_points、bucket 五件套。原 1.0 Dashboard 仍保留在 `/dashboard`。
+打开 `http://127.0.0.1:8000/l2-dashboard`。页面按 `miss` / `unsupported` 筛选问题 case，支持 bucket 拆解，并在详情中展示 question、answer、tool_outputs、golden_points、bucket 五件套。对忠实轴 `UNSUPPORTED` 断言，可在详情抽屉里通过下拉选择或手动输入 root cause、填写备注，并生成可复制摘要；标注会追加保存到 `logs/l2_root_cause_annotations.jsonl`。原 1.0 Dashboard 仍保留在 `/dashboard`。
 
 单 Agent vs 多 Agent 对比：`python3 -m src.eval_compare`。
 

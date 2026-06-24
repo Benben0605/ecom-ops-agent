@@ -4,6 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.l2_annotations import (
+    ROOT_CAUSE_OPTIONS,
+    annotation_path,
+    build_l2_issue_id,
+    load_latest_l2_annotations,
+)
+
 
 ROOT = Path(__file__).parents[1]
 
@@ -101,6 +108,8 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
         raw_results = {}
 
     cases_by_id, tool_outputs_by_case = _source_context(root)
+    annotations = load_latest_l2_annotations(root)
+    annotations_path = annotation_path(root)
     rows: list[dict[str, Any]] = []
     totals = _empty_bucket()
     bucket_stats: dict[str, dict[str, int]] = defaultdict(_empty_bucket)
@@ -114,11 +123,21 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
         hit_axis = [
             item for item in verdict.get("hit_axis", []) if isinstance(item, dict)
         ]
-        faithfulness_axis = [
-            item
-            for item in verdict.get("faithfulness_axis", [])
-            if isinstance(item, dict)
-        ]
+        faithfulness_axis = []
+        for item in verdict.get("faithfulness_axis", []):
+            if not isinstance(item, dict):
+                continue
+            axis_item = dict(item)
+            assertion = str(axis_item.get("assertion") or "")
+            axis_verdict = str(axis_item.get("verdict") or "").lower()
+            issue_id = build_l2_issue_id(case_id, axis_verdict, assertion)
+            axis_item["assertion"] = assertion
+            axis_item["verdict"] = axis_verdict
+            axis_item["issue_id"] = issue_id
+            annotation = annotations.get(issue_id)
+            if annotation:
+                axis_item["annotation"] = annotation
+            faithfulness_axis.append(axis_item)
 
         hit_ok = sum(item.get("verdict") == "hit" for item in hit_axis)
         faith_ok = sum(
@@ -127,6 +146,9 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
         miss_count = sum(item.get("verdict") == "miss" for item in hit_axis)
         unsupported_count = sum(
             item.get("verdict") == "unsupported" for item in faithfulness_axis
+        )
+        annotation_count = sum(
+            1 for item in faithfulness_axis if item.get("annotation")
         )
         has_hit_issue = miss_count > 0
         has_faith_issue = unsupported_count > 0
@@ -161,6 +183,7 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
             },
             "miss_count": miss_count,
             "unsupported_count": unsupported_count,
+            "annotation_count": annotation_count,
             "has_hit_issue": has_hit_issue,
             "has_faith_issue": has_faith_issue,
             "has_issue": has_issue,
@@ -208,6 +231,12 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
                 {"bucket": bucket, **_finalize_stats(stats)}
                 for bucket, stats in sorted(bucket_stats.items())
             ]
+        },
+        "annotations": {
+            "path": str(annotations_path),
+            "exists": annotations_path.exists(),
+            "count": len(annotations),
+            "root_cause_options": ROOT_CAUSE_OPTIONS,
         },
         "cases": rows,
         "issue_cases": [row for row in rows if row["has_issue"]],

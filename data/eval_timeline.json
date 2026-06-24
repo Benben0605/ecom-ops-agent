@@ -1,0 +1,23 @@
+[
+  {
+    "stage": "baseline",
+    "stage_label": "baseline",
+    "misfire_rate": 0.0484,
+    "headline": "鉴别力来自 weakness 桶",
+    "label": "weakness 桶：发票/改地址/转人工被硬调最接近的工具兜底"
+  },
+  {
+    "stage": "+escalate",
+    "stage_label": "+ fallback 工具",
+    "misfire_rate": 0.0968,
+    "headline": "反噬：weakness 转绿，但 negative 桶塌",
+    "label": "加 escalate_to_human 给 action-bias 一个合法出口，但闲聊(天气/笑话)被 escalate 吞掉"
+  },
+  {
+    "stage": "+边界收窄",
+    "stage_label": "+ 边界收窄",
+    "misfire_rate": 0.0161,
+    "headline": "negative 修复",
+    "label": "收窄 escalate 描述(排除闲聊/常识/寒暄)——工具边界是连通器，得同时划「接什么」和「不接什么」"
+  }
+]
