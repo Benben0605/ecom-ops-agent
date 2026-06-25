@@ -1132,5 +1132,176 @@
             "转述了订单10006状态",
             "转述了订单10011状态"
         ]
+    },
+    {
+        "id": "case_063",
+        "bucket": "complex_task",
+        "question": "看下我们店订单数最多的是哪款商品、属于哪个类目，就照那个类目给我推荐几款搭配，预算别超过全店客单价。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "家居日用"
+                }
+            }
+        ],
+        "trap": "纯参数传递：客单价+类目都得先从analyze_ops输出读到再传给recommend；单步易在拿到客单价前就推荐、丢预算约束、或没认出畅销品=家居日用",
+        "golden_answer_points": [
+            "转述了订单数最多的商品（保温杯，家居日用）",
+            "推荐了家居日用类目的商品",
+            "推荐商品价格不超过全店客单价"
+        ]
+    },
+    {
+        "id": "case_064",
+        "bucket": "complex_task",
+        "question": "美妆护肤和家居日用这两个类目，哪个销售额更高？销售额高的那个类目，再帮我推荐两款不超过它客单价的商品。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            },
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {
+                    "category": "家居日用"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            }
+        ],
+        "trap": "条件分支+参数传递：得先analyze两个类目比出赢家(美妆337>家居267)才知道推哪类、预算=赢家客单价；单步易只analyze一个就下结论、在看数据前推荐、选错赢家、丢预算",
+        "golden_answer_points": [
+            "转述了美妆护肤与家居日用的销售额对比（美妆护肤更高）",
+            "推荐了美妆护肤类目的商品",
+            "推荐商品价格不超过美妆护肤类目的客单价"
+        ]
+    },
+    {
+        "id": "case_065",
+        "bucket": "complex_task",
+        "question": "帮我查下 10002、10007、10009、10012 这四个订单的状态，已取消的不用管，剩下里面还没发货的单独拎出来告诉我。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {
+                    "order_id": "10002"
+                }
+            },
+            {
+                "tool_name": "query_order",
+                "tool_params": {
+                    "order_id": "10007"
+                }
+            },
+            {
+                "tool_name": "query_order",
+                "tool_params": {
+                    "order_id": "10009"
+                }
+            },
+            {
+                "tool_name": "query_order",
+                "tool_params": {
+                    "order_id": "10012"
+                }
+            }
+        ],
+        "trap": "4路fan-out+异常归类：4个单号都要查、已取消(10007)剔除、待发货(10002/10012)单独拎；单步易丢某个单号、把已取消当正常单汇报、不做还没发货归类",
+        "golden_answer_points": [
+            "转述了10002的状态（待发货）",
+            "转述了10009的状态（已签收）",
+            "转述了10012的状态（待发货）",
+            "点出10002和10012还没发货",
+            "认出10007已取消、没当正常订单汇报"
+        ]
+    },
+    {
+        "id": "case_066",
+        "bucket": "complex_task",
+        "question": "给运动户外类目推荐 3 款 100 块以内的；要是这个类目凑不够 3 款，就用全店畅销品补齐到 3 款。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "运动户外"
+                }
+            },
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {}
+            }
+        ],
+        "trap": "re-plan触发=结果不足：运动户外100内只有瑜伽垫/弹力带2款<3，正解要识别不足并调analyze_ops取畅销补齐；单步易给2款就停下汇报\"只有2款\"、不触发补齐",
+        "golden_answer_points": [
+            "推荐了运动户外类目100元内的瑜伽垫和弹力带",
+            "指出运动户外类目不足3款",
+            "用全店畅销品补齐到3款"
+        ]
+    },
+    {
+        "id": "case_067",
+        "bucket": "complex_task",
+        "question": "查一下订单 10007 什么状态；如果显示已取消，就照它买的那款商品的类目再给我推荐两款。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "query_order",
+                "tool_params": {
+                    "order_id": "10007"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "数码"
+                }
+            }
+        ],
+        "trap": "re-plan触发=条件状态成立：10007已取消→条件子句触发，正解读出蓝牙耳机=数码类目再recommend；单步易只报\"已取消\"就停、忽略条件子句的推荐",
+        "golden_answer_points": [
+            "转述了订单10007已取消",
+            "识别出该商品（蓝牙耳机）属于数码类目",
+            "推荐了数码类目的两款商品"
+        ]
+    },
+    {
+        "id": "case_068",
+        "bucket": "complex_task",
+        "question": "推荐两款 50 块以内的数码产品；要是没有合适的，就推荐运动户外类目的（不限价）。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "数码"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "运动户外"
+                }
+            }
+        ],
+        "trap": "re-plan触发=返回空：数码50内全军覆没（耳机299/充电宝139），正解识别空→降级到运动户外【不带50约束】。原版\"50内\"全局歧义已划清（Day1裁决=改问句介质）；单步若仍把budget带进降级步=真错",
+        "golden_answer_points": [
+            "指出50元预算内没有合适的数码产品",
+            "降级推荐了运动户外类目商品（瑜伽垫、弹力带）"
+        ]
     }
 ]
