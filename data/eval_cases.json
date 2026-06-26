@@ -1303,5 +1303,117 @@
             "指出50元预算内没有合适的数码产品",
             "降级推荐了运动户外类目商品（瑜伽垫、弹力带）"
         ]
+    },
+    {
+        "id": "case_069",
+        "bucket": "complex_task",
+        "question": "查一下全店客单价是多少；然后美妆护肤和家居日用各推荐一款，价格都不超过这个客单价。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "家居日用"
+                }
+            }
+        ],
+        "trap": "约束跨步误传(派生+并列分发)：约束=全店客单价118是先算出来的派生值，要同时传给两个并列recommend；单步易丢118、或第二步换成类目客单价（美妆112/家居89）",
+        "golden_answer_points": [
+            "转述了全店客单价118元",
+            "给美妆护肤推荐了不超过118元的商品",
+            "给家居日用推荐了不超过118元的商品"
+        ]
+    },
+    {
+        "id": "case_070",
+        "bucket": "complex_task",
+        "question": "帮我对比美妆护肤和食品这两个类目：各自的销售额、客单价、还有按销量最高的那款商品分别是什么。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            },
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {
+                    "category": "食品"
+                }
+            }
+        ],
+        "trap": "多子目标综合漏报(067纯形放大)：6个子目标，工具必调对，赌综合成table时漏掉某一格（最易漏客单价或热销款其一）。用『按销量最高』锁口径=订单数Top1，避开美妆销售额Top1(玻尿酸199)vs订单数Top1(洁面)的口径歧义",
+        "golden_answer_points": [
+            "转述了美妆护肤销售额337元",
+            "转述了美妆护肤客单价112元",
+            "转述了美妆护肤销量最高的是氨基酸温和洁面乳",
+            "转述了食品销售额238元",
+            "转述了食品客单价119元",
+            "转述了食品销量最高的是每日坚果礼盒"
+        ]
+    },
+    {
+        "id": "case_071",
+        "bucket": "complex_task",
+        "question": "推荐两款 150 块以内的数码产品；要是数码不够两款，就从家居日用补齐到两款，家居也要 150 以内。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "数码"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "家居日用"
+                }
+            }
+        ],
+        "trap": "约束该留+不足补齐(066家族升级)：数码150内只充电宝139一款<2，正解识别不足→从家居补齐，且150约束要带进补齐步。可观测泄漏探针：带150→香薰礼盒159被排除；丢150→香薰159进top3=约束泄漏现形",
+        "golden_answer_points": [
+            "指出数码150元内只有快充充电宝一款",
+            "识别出数码不足两款",
+            "从家居日用补齐到两款",
+            "补齐的家居商品也不超过150元（不出现159元的助眠香薰礼盒）"
+        ]
+    },
+    {
+        "id": "case_072",
+        "bucket": "complex_task",
+        "question": "推荐两款 130 块以内的美妆护肤；另外单独再推荐一款家居日用的送长辈，这款价位不限。",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "家居日用"
+                }
+            }
+        ],
+        "trap": "约束该丢(配对071镜像)：130只管美妆A步，家居B步问句明确『价位不限』。可观测泄漏探针：正确→家居推荐含香薰礼盒159(不限价top3全返回)；泄漏130→香薰159被错误排除。问句把不限价说死，泄漏即真错（吸取068歧义教训）",
+        "golden_answer_points": [
+            "给美妆护肤推荐了不超过130元的两款（洁面乳/面霜）",
+            "给家居日用推荐了送长辈的商品",
+            "家居推荐不受130预算限制（包含高于130元的商品，如159元的助眠香薰礼盒）"
+        ]
     }
 ]
