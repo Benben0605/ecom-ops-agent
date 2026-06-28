@@ -180,5 +180,54 @@
         "query": "怎么加盟开店、成为供应商",
         "relevant_items": [],
         "note": "负样本·C端客服无B端招商"
+    },
+    {
+        "id": "rq_021",
+        "bucket": "negative",
+        "query": "能修改已下单商品的数量吗",
+        "relevant_items": [],
+        "note": "负·擦边order(无改数量)"
+    },
+    {
+        "id": "rq_022",
+        "bucket": "negative",
+        "query": "你们支持以旧换新吗",
+        "relevant_items": [],
+        "note": "负·擦边换货/保修(无旧换新)"
+    },
+    {
+        "id": "rq_023",
+        "bucket": "negative",
+        "query": "怎么开通付费会员、买会员价",
+        "relevant_items": [],
+        "note": "负·擦边member(会员免费升级、无付费开通)"
+    },
+    {
+        "id": "rq_024",
+        "bucket": "negative",
+        "query": "可以找朋友代付吗",
+        "relevant_items": [],
+        "note": "负·擦边pay(无代付)"
+    },
+    {
+        "id": "rq_025",
+        "bucket": "negative",
+        "query": "商品的保质期是多久",
+        "relevant_items": [],
+        "note": "负·无保质期信息"
+    },
+    {
+        "id": "rq_026",
+        "bucket": "negative",
+        "query": "下单后多久不付款订单会自动取消",
+        "relevant_items": [],
+        "note": "负·擦边pay/order(无未付款自动取消时限)"
+    },
+    {
+        "id": "rq_027",
+        "bucket": "negative",
+        "query": "支持企业批量采购、开通对公账户吗",
+        "relevant_items": [],
+        "note": "负·C端无B端采购(干净对照)"
     }
 ]
