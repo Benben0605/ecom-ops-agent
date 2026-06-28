@@ -1,0 +1,184 @@
+[
+    {
+        "id": "rq_001",
+        "bucket": "direct",
+        "query": "积分多久会清零",
+        "relevant_items": [
+            "member-points-expire"
+        ],
+        "note": "直接"
+    },
+    {
+        "id": "rq_002",
+        "bucket": "direct",
+        "query": "满多少钱包邮",
+        "relevant_items": [
+            "ship-freefee"
+        ],
+        "note": "直接"
+    },
+    {
+        "id": "rq_003",
+        "bucket": "direct",
+        "query": "人工客服几点上班",
+        "relevant_items": [
+            "service-hours"
+        ],
+        "note": "直接"
+    },
+    {
+        "id": "rq_004",
+        "bucket": "direct",
+        "query": "怎么查物流进度",
+        "relevant_items": [
+            "ship-track"
+        ],
+        "note": "直接"
+    },
+    {
+        "id": "rq_005",
+        "bucket": "direct",
+        "query": "支付失败了钱会被扣吗",
+        "relevant_items": [
+            "pay-fail"
+        ],
+        "note": "直接"
+    },
+    {
+        "id": "rq_006",
+        "bucket": "cross_item",
+        "query": "七天无理由退货怎么申请",
+        "relevant_items": [
+            "refund-7day-noreason",
+            "refund-process"
+        ],
+        "note": "条件+流程两单元，全召回算满分"
+    },
+    {
+        "id": "rq_007",
+        "bucket": "cross_item",
+        "query": "预售的东西啥时候发货",
+        "relevant_items": [
+            "ship-time-presale",
+            "product-presale-time"
+        ],
+        "note": "同一事实跨物流/商品两主题"
+    },
+    {
+        "id": "rq_008",
+        "bucket": "cross_item",
+        "query": "开电子发票，能开专票吗",
+        "relevant_items": [
+            "pay-invoice-apply",
+            "pay-invoice-type"
+        ],
+        "note": "申请+类型"
+    },
+    {
+        "id": "rq_009",
+        "bucket": "cross_item",
+        "query": "金卡有什么专属权益、怎么升金卡",
+        "relevant_items": [
+            "member-benefit-gold",
+            "member-levels"
+        ],
+        "note": "权益+升级"
+    },
+    {
+        "id": "rq_010",
+        "bucket": "paraphrase",
+        "query": "买的数码产品坏了能保修吗",
+        "relevant_items": [
+            "warranty-period"
+        ],
+        "note": "坏了→保修"
+    },
+    {
+        "id": "rq_011",
+        "bucket": "paraphrase",
+        "query": "下单后想改收货地址",
+        "relevant_items": [
+            "order-modify-address"
+        ],
+        "note": "改→修改"
+    },
+    {
+        "id": "rq_012",
+        "bucket": "paraphrase",
+        "query": "攒的积分能当钱花吗",
+        "relevant_items": [
+            "member-points-redeem"
+        ],
+        "note": "当钱花→抵扣"
+    },
+    {
+        "id": "rq_013",
+        "bucket": "paraphrase",
+        "query": "东西不想要了能退钱吗",
+        "relevant_items": [
+            "refund-7day-noreason"
+        ],
+        "note": "不想要→无理由退"
+    },
+    {
+        "id": "rq_014",
+        "bucket": "confusing",
+        "query": "收到货发现颜色和图片不一样能换吗",
+        "relevant_items": [
+            "product-color"
+        ],
+        "trap": "exchange-quality（色差≠质量问题）",
+        "note": "易混·测Precision"
+    },
+    {
+        "id": "rq_015",
+        "bucket": "confusing",
+        "query": "非质量问题想换货，几天内可以",
+        "relevant_items": [
+            "exchange-nonquality"
+        ],
+        "trap": "refund-7day-noreason/exchange-quality（同7天/同换货）",
+        "note": "易混·测Precision"
+    },
+    {
+        "id": "rq_016",
+        "bucket": "confusing",
+        "query": "两张优惠券能不能一起用",
+        "relevant_items": [
+            "coupon-stack"
+        ],
+        "trap": "coupon-threshold（都涉券规则）",
+        "note": "易混·测Precision"
+    },
+    {
+        "id": "rq_017",
+        "bucket": "confusing",
+        "query": "包裹外包装压坏了怎么办",
+        "relevant_items": [
+            "ship-damage"
+        ],
+        "trap": "exchange-quality/product-color（都沾损坏/质量）",
+        "note": "易混·测Precision"
+    },
+    {
+        "id": "rq_018",
+        "bucket": "negative",
+        "query": "支持海外直邮到美国吗",
+        "relevant_items": [],
+        "note": "负样本·corpus无跨境"
+    },
+    {
+        "id": "rq_019",
+        "bucket": "negative",
+        "query": "你们有线下实体店吗",
+        "relevant_items": [],
+        "note": "负样本·corpus无线下店"
+    },
+    {
+        "id": "rq_020",
+        "bucket": "negative",
+        "query": "怎么加盟开店、成为供应商",
+        "relevant_items": [],
+        "note": "负样本·C端客服无B端招商"
+    }
+]
