@@ -22,7 +22,8 @@ COLLECTION_NAME = "faq"
 CORPUS_PATH = Path(__file__).parents[2] / "data" / "faq" / "corpus.json"
 ABSTAIN = "知识库中未找到能回答该问题的相关内容。"
 
-GRADER_ENABLED = True  # 测试可关，做 before/after 对比
+GRADER_ENABLED = True  # 测试可关，做消融对比（grader on/off）
+TOP_K = 3              # 默认检索条数；消融实验可调（top_k=3/5/8），run() 不传时取此值
 
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 embed_client = OpenAI(api_key=config.EMBED_API_KEY, base_url=config.EMBED_BASE_URL)
@@ -86,8 +87,9 @@ def _grade_chunks(query: str, passages: list[str]) -> list[dict]:
 TRACE: list = []
 
 
-def run(query: str, top_k: int = 3) -> str:
+def run(query: str, top_k: int | None = None) -> str:
     _ensure_index()
+    top_k = top_k if top_k is not None else TOP_K  # 消融实验可经模块级 TOP_K 调
     coll = chroma_client.get_collection(COLLECTION_NAME)
     result = coll.query(query_embeddings=[_embed([query])[0]], n_results=top_k,
                         include=["documents", "metadatas", "distances"])
