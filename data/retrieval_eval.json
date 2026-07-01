@@ -229,5 +229,13 @@
         "query": "支持企业批量采购、开通对公账户吗",
         "relevant_items": [],
         "note": "负·C端无B端采购(干净对照)"
+    },
+    {
+        "id": "rq_028",
+        "bucket": "cross_family",
+        "query": "退换货政策",
+        "relevant_items": ["refund-7day-noreason","refund-process","refund-freight",
+                   "refund-timing","refund-exception","exchange-quality","exchange-nonquality"],
+        "note": "跨族·退货+换货两族都该召回"
     }
 ]
