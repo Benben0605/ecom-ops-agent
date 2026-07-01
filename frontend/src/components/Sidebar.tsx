@@ -4,6 +4,7 @@ const navItems = [
   { to: "/", label: "总览", icon: "overview", end: true },
   { to: "/l1", label: "L1 路由评估", icon: "route" },
   { to: "/l2", label: "L2 回复质量", icon: "quality" },
+  { to: "/ab", label: "A/B 对比", icon: "ab" },
   { to: "/playground", label: "Playground", icon: "chat" },
 ] as const;
 
@@ -13,6 +14,9 @@ function NavIcon({ name }: { name: string }) {
   }
   if (name === "quality") {
     return <svg viewBox="0 0 24 24"><path d="m12 3 7 3v5c0 4.6-2.8 8.1-7 10-4.2-1.9-7-5.4-7-10V6l7-3Z" /><path d="m9 12 2 2 4-5" /></svg>;
+  }
+  if (name === "ab") {
+    return <svg viewBox="0 0 24 24"><path d="M4 6h6M4 12h6M4 18h6M14 6h6M14 12h6M14 18h6M12 3v18" /></svg>;
   }
   if (name === "chat") {
     return <svg viewBox="0 0 24 24"><path d="M5 18 3 21v-5a8 8 0 1 1 4 3.5" /></svg>;

@@ -4,10 +4,10 @@ from collections import defaultdict
 import json
 from pathlib import Path
 
-from src.eval_answer_runner import eval_answer_run, multi_agent_run
-from src.eval_judge import eval_judge, summarize_results
+from src.eval.answer_runner import eval_answer_run, multi_agent_run
+from src.eval.judge import eval_judge, summarize_results
 
-LOGS = Path(__file__).parents[1] / "logs"
+LOGS = Path(__file__).parents[2] / "logs"
 _TRANSIENT = ["audit.jsonl", "run_map.json", "session_messages.jsonl",
               "case_eval_result.json", "eval_metrics.json"]
 
@@ -30,8 +30,8 @@ def _bucket_misfire(case_eval: dict) -> dict:
 
 def run_arch(run_fn) -> tuple[dict, dict]:
     _clear()
-    run_fn()
-    case_eval = eval_judge()
+    run_dir = run_fn()  # runner 返回隔离 trace 目录，judge 对齐读取（修断链）
+    case_eval = eval_judge(run_dir)
     return summarize_results(case_eval), _bucket_misfire(case_eval)
 
 

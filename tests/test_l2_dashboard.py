@@ -3,12 +3,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from src.l2_annotations import (
+from src.eval.l2.annotations import (
     build_l2_issue_id,
     load_latest_l2_annotations,
     save_l2_annotation,
 )
-from src.l2_dashboard import build_l2_dashboard_data
+from src.eval.l2.dashboard import build_l2_dashboard_data
 
 
 class L2DashboardDataTest(unittest.TestCase):

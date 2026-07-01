@@ -20,7 +20,7 @@ from openai import OpenAI
 
 from src import config
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 CORPUS_PATH = ROOT / "data" / "faq" / "corpus.json"
 EVAL_PATH = ROOT / "data" / "retrieval_eval.json"
 CHROMA_DIR = ROOT / ".chroma_eval"  # 独立目录，与生产 kb_search 的 .chroma 隔离
@@ -109,11 +109,12 @@ def score_query(retrieved: list[Retrieved], gold: set[str], k: int) -> dict:
             "covered": sorted(covered), "top3sims": top3sims}
 
 
-def run():
+def run(chunker=chunk_baseline, out_dir: Path | None = None):
+    out_dir = out_dir or ROOT / "logs"
     items = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
     queries = json.loads(EVAL_PATH.read_text(encoding="utf-8"))
 
-    chunks = chunk_baseline(items)
+    chunks = chunker(items)
     coll = build_index(chunks)
     print(f"索引：{len(chunks)} chunk（baseline 1 item/chunk）\n")
 
@@ -177,8 +178,10 @@ def run():
 
     out = {"per_query": per_query, "negative": neg_rows,
            "aggregate": {b: {k: avg(v) for k, v in m.items()} for b, m in agg.items()}}
-    (ROOT / "logs" / "retrieval_eval_result.json").write_text(
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "retrieval_eval_result.json").write_text(
         json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out
 
 
 if __name__ == "__main__":

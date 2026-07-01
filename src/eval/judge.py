@@ -6,11 +6,12 @@ from pathlib import Path
 
 from src.audit import ToolAudit
 
-def load():
-    ROOT = Path(__file__).parents[1]
+def load(run_dir: Path | None = None):
+    ROOT = Path(__file__).parents[2]
+    run_dir = run_dir or ROOT / "logs"
     eval_cases_path = ROOT / "data" / "eval_cases.json"
-    audit_path = ROOT / "logs" / "audit.jsonl"
-    run_map_path = ROOT / "logs" / "run_map.json"
+    audit_path = run_dir / "audit.jsonl"
+    run_map_path = run_dir / "run_map.json"
 
     run_map = json.loads(run_map_path.read_text(encoding="utf-8"))
     cases = json.loads(eval_cases_path.read_text(encoding="utf-8"))
@@ -55,8 +56,8 @@ def summarize_results(case_eval_result: dict[str, dict]) -> dict:
         "misfire_rate": misfire_count / len(results) if results else 0,
     }
 
-def eval_judge() -> dict[str, dict]:
-    run_map, cases, audit_lines = load()
+def eval_judge(run_dir: Path | None = None) -> dict[str, dict]:
+    run_map, cases, audit_lines = load(run_dir)
     
     # 1）按 case_id 归集这个 case 实际调用的工具
     #   只认 run_map 中的 session_id。 case_id -> session_id -> 累加 tool_name 
@@ -115,13 +116,13 @@ def eval_judge() -> dict[str, dict]:
 if __name__ == "__main__":
     case_eval_result = eval_judge()
     
-    case_eval_path = Path(__file__).parents[1] / "logs" / "case_eval_result.json"
+    case_eval_path = Path(__file__).parents[2] / "logs" / "case_eval_result.json"
     case_eval_path.parent.mkdir(parents=True, exist_ok=True)
     with open(case_eval_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(case_eval_result, ensure_ascii=False, indent=2))
     
     metrics = summarize_results(case_eval_result)
-    metrics_path = Path(__file__).parents[1] / "logs" / "eval_metrics.json"
+    metrics_path = Path(__file__).parents[2] / "logs" / "eval_metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         f.write(json.dumps(metrics, ensure_ascii=False, indent=2))
     

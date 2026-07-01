@@ -8,9 +8,9 @@ import json
 import re
 from pathlib import Path
 
-from src.eval_l2_judge import judge_one
+from src.eval.l2.judge import judge_one
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[3]
 FIXTURES = ROOT / "data" / "l2_judge_fixtures.json"
 OUT = ROOT / "logs" / "l2_judge_fixtures_result.json"
 

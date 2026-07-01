@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import { useEval, useL2 } from "./hooks";
+import ABCompare from "./views/ABCompare";
 import Overview from "./views/Overview";
 import Playground from "./views/Playground";
 import QualityL2 from "./views/QualityL2";
@@ -12,6 +13,7 @@ const titles: Record<string, string> = {
   "/": "总览",
   "/l1": "L1 路由评估",
   "/l2": "L2 回复质量",
+  "/ab": "A/B 对比",
   "/playground": "Playground",
 };
 
@@ -36,6 +38,7 @@ export default function App() {
             <Route path="/" element={<Overview evalQuery={evalQuery} l2Query={l2Query} />} />
             <Route path="/l1" element={<RoutingL1 query={evalQuery} />} />
             <Route path="/l2" element={<QualityL2 query={l2Query} />} />
+            <Route path="/ab" element={<ABCompare />} />
             <Route path="/playground" element={<Playground />} />
             <Route path="/dashboard" element={<Navigate to="/l1" replace />} />
             <Route path="/l2-dashboard" element={<Navigate to="/l2" replace />} />

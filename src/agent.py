@@ -36,8 +36,9 @@ class ChatSession():
 
     def __init__(self, system_prompt: str = _system_prompt, audit_recorder=None,
                  tool_schemas: list | None = None, tool_impls: dict | None = None,
-                 session_id: str | None = None):
+                 session_id: str | None = None, model: str = config.MODEL):
         self.id = session_id or uuid4().hex
+        self.model = model  # 主推理模型，实验 harness 可按变体换；压缩摘要仍走 config.MODEL
         self.messages = [{"role": "system", "content": system_prompt} ]
         self.audit_recorder = audit_recorder or AuditRecorder()
         # 默认全工具（单 Agent 不变）；专家 Agent 传子集
@@ -53,7 +54,7 @@ class ChatSession():
         self.messages.append({"role": "user", "content": user_input})
         while True:
             r = client.chat.completions.create(
-                model=config.MODEL,
+                model=self.model,
                 messages=self.messages,
                 tools=self.tool_schemas
             )

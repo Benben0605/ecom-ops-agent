@@ -239,3 +239,63 @@ export const sendChat = (payload: ChatRequest) =>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+
+// ===== A/B 实验对比 =====
+export interface ExperimentManifest {
+  exp_id: string;
+  name: string;
+  track: "agent" | "retrieval";
+  variants: Array<{ name: string; config: Record<string, JsonValue> }>;
+  provenance: {
+    git_commit: string;
+    timestamp: string;
+    n: number;
+    track: string;
+    dataset_sha: Record<string, string>;
+  };
+}
+
+export type FlipStatus = "improved" | "regressed" | "same" | "na";
+
+export interface MetricDelta {
+  a: number | null;
+  b: number | null;
+  delta: number | null;
+}
+
+export interface CaseDiffLayer {
+  a: number | null; // per-run 通过率（N=1 时为 0/1）
+  b: number | null;
+  status: FlipStatus;
+  a_mrr?: number | null;
+  b_mrr?: number | null;
+}
+
+export interface CaseDiffRow {
+  case_id: string;
+  bucket: string | null;
+  L1?: CaseDiffLayer;
+  L2?: CaseDiffLayer;
+  RAG?: CaseDiffLayer;
+}
+
+export interface CompareData {
+  exp_id: string;
+  track: "agent" | "retrieval";
+  variant_a: string;
+  variant_b: string;
+  headline_delta: Record<string, Record<string, MetricDelta>>;
+  case_diff: CaseDiffRow[];
+  detail: Record<string, { question: string; a: JsonValue; b: JsonValue }>;
+}
+
+export const fetchExperiments = () =>
+  request<ExperimentManifest[]>("/api/experiments");
+
+export const fetchCompare = (expId: string, a?: string, b?: string) => {
+  const q = new URLSearchParams();
+  if (a) q.set("a", a);
+  if (b) q.set("b", b);
+  const qs = q.toString();
+  return request<CompareData>(`/api/experiments/${expId}/compare${qs ? `?${qs}` : ""}`);
+};

@@ -9,7 +9,7 @@
 - A(grader_off, k3) vs B(grader_on, k3)：同 corpus 同 top_k，只 grader → 隔离 grader 效应
 - B(grader_on, k3) vs C(grader_on, k5)：同 corpus 同 grader，只 top_k → 隔离 top_k 效应（049 验证）
 
-跑法：python -m src.experiment_kb [N]
+跑法：python -m src.experiment.kb [N]
 """
 import json
 import subprocess
@@ -20,9 +20,9 @@ from pathlib import Path
 from src.tools import kb_search
 from src.agent import ChatSession
 from src.audit import AuditRecorder, MessageRecorder
-from src.eval_l2_judge import run_l2
+from src.eval.l2.judge import run_l2
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 LOGS = ROOT / "logs"
 KB_CASES = ['case_004', 'case_005', 'case_013', 'case_016', 'case_026', 'case_027',
             'case_031', 'case_033', 'case_040', 'case_045', 'case_047', 'case_048',
