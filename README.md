@@ -109,8 +109,8 @@ python main.py         # CLI 对话
 ## 跑评估 + Dashboard
 
 ```bash
-python3 -m src.eval_answer_runner   # 62 条跑生产 Agent，落 audit.jsonl + run_map
-python3 -m src.eval_judge           # 三方 JOIN 判分，出 metrics
+python3 -m src.eval.answer_runner   # 62 条跑生产 Agent，落 audit.jsonl + run_map
+python3 -m src.eval.judge           # 三方 JOIN 判分，出 metrics
 uvicorn src.api:app --reload
 ```
 
@@ -121,14 +121,14 @@ uvicorn src.api:app --reload
 L2 独立评估最终回复的两个轴：golden point 的要点命中率，以及 answer 中事实断言相对 tool output 池的忠实度。
 
 ```bash
-python3 -m src.eval_answer_runner
-python3 -m src.eval_l2_judge       # 输出 logs/l2_eval_result.json
+python3 -m src.eval.answer_runner
+python3 -m src.eval.l2.judge       # 输出 logs/l2_eval_result.json
 uvicorn src.api:app --reload
 ```
 
 打开 `http://127.0.0.1:8000/l2-dashboard`。页面按 `miss` / `unsupported` 筛选问题 case，支持 bucket 拆解，并在详情中展示 question、answer、tool_outputs、golden_points、bucket 五件套。对忠实轴 `UNSUPPORTED` 断言，可在详情抽屉里通过下拉选择或手动输入 root cause、填写备注，并生成可复制摘要；标注会追加保存到 `logs/l2_root_cause_annotations.jsonl`。原 1.0 Dashboard 仍保留在 `/dashboard`。
 
-单 Agent vs 多 Agent 对比：`python3 -m src.eval_compare`。
+单 Agent vs 多 Agent 对比：`python3 -m src.eval.compare`。
 
 ## 目录
 
@@ -137,12 +137,10 @@ src/agent.py              ChatSession（Agent loop）+ SupervisorAgent（多 Age
 src/tools/                工具实现（query_order / kb_search / recommend_product / analyze_ops / escalate_to_human）
 src/schemas/              各工具的 LLM function-calling schema
 src/audit.py              ToolAudit + AuditRecorder / NoOpRecorder / MessageRecorder
-src/eval_answer_runner.py 评估 runner（bootstrap，建 run_map）
-src/eval_judge.py         判分器（Counter 口径，三方 JOIN）
-src/eval_l2_judge.py      L2 判分器（要点命中率 + 忠实度）
-src/eval_compare.py       单 Agent vs 多 Agent 对比
-src/dashboard.py          评估 Dashboard 数据聚合
-src/l2_dashboard.py       L2 Dashboard 2.0 数据聚合
+src/eval/                 评估 harness（answer_runner / judge / compare / retrieval）
+src/eval/l2/              L2 评估（判分器 / fixtures / 标注 / dashboard）
+src/experiment/           消融实验（runner / compare / kb）
+src/dashboard/            评估 Dashboard 数据聚合
 src/api.py                FastAPI（/chat + /dashboard + /l2-dashboard）
 data/eval_cases.json      评估集（62 条，带 bucket / trap）
 data/orders.json          mock 订单（一份喂 query_order + analyze_ops）

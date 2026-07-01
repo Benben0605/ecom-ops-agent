@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[2]
 
 
 def _load_json(path: Path, default: Any) -> Any:

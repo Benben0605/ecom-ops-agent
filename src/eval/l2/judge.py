@@ -9,10 +9,11 @@ from src import config
 
 client = OpenAI(api_key=config.API_KEY, base_url=config.BASE_URL)
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[3]
 
 # 只有事实桶才有 golden、才进 L2；clarify/negative/weakness 缺席即信号
-FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing"}
+# complex_task（2.0 Phase1）也是事实桶：有 golden（=分解后的子目标）+ tool 输出可对照
+FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing", "complex_task"}
 
 # orders.json 是冻结的 eval fixture：部分 golden 按订单状态 key（如已签收/已取消单删 eta，
 # 见 case_021/044）。数据一旦改动，这些状态相关的 golden 可能烂掉，必须复核后更新此哈希。
@@ -28,15 +29,16 @@ def assert_eval_data_frozen() -> None:
     )
 
 
-def load_l2_inputs() -> dict[str, dict]:
+def load_l2_inputs(run_dir: Path | None = None) -> dict[str, dict]:
     """组装每个已标 golden 的事实桶 case 的 judge 三件套。
     返回 {case_id: {question, answer, tool_outputs(池), golden_points, bucket}}"""
     assert_eval_data_frozen()
+    run_dir = run_dir or ROOT / "logs"
     cases = json.loads((ROOT / "data" / "eval_cases.json").read_text(encoding="utf-8"))
-    run_map = json.loads((ROOT / "logs" / "run_map.json").read_text(encoding="utf-8"))
+    run_map = json.loads((run_dir / "run_map.json").read_text(encoding="utf-8"))
 
     sess_by_id: dict[str, list] = {}
-    with open(ROOT / "logs" / "session_messages.jsonl", encoding="utf-8") as f:
+    with open(run_dir / "session_messages.jsonl", encoding="utf-8") as f:
         for line in f:
             d = json.loads(line)
             sess_by_id[d["session_id"]] = d["messages"]
@@ -169,8 +171,8 @@ def score_one(verdict: dict) -> dict:
     }
 
 
-def run_l2():
-    inputs = load_l2_inputs()
+def run_l2(run_dir: Path | None = None):
+    inputs = load_l2_inputs(run_dir)
     results = {}
     for case_id, item in inputs.items():
         try:

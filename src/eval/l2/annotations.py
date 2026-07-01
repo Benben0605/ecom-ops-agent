@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[3]
 ANNOTATION_RELATIVE_PATH = Path("logs") / "l2_root_cause_annotations.jsonl"
 
 ROOT_CAUSE_OPTIONS: list[dict[str, str]] = [

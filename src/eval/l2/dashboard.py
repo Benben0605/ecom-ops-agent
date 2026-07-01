@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.l2_annotations import (
+from src.eval.l2.annotations import (
     ROOT_CAUSE_OPTIONS,
     annotation_path,
     build_l2_issue_id,
@@ -12,7 +12,7 @@ from src.l2_annotations import (
 )
 
 
-ROOT = Path(__file__).parents[1]
+ROOT = Path(__file__).parents[3]
 
 
 def _load_json(path: Path, default: Any) -> Any:
