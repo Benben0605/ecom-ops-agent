@@ -1,0 +1,104 @@
+{
+  "u_beauty": {
+    "order_history": [
+      {
+        "item": "玻尿酸补水精华 30ml",
+        "category": "美妆护肤",
+        "amount": 199,
+        "date": "2026-04-12"
+      },
+      {
+        "item": "抗老紧致眼霜 20ml",
+        "category": "美妆护肤",
+        "amount": 329,
+        "date": "2026-04-28"
+      },
+      {
+        "item": "烟酰胺美白精华 30ml",
+        "category": "美妆护肤",
+        "amount": 259,
+        "date": "2026-05-15"
+      },
+      {
+        "item": "修护面膜礼盒 20 片",
+        "category": "美妆护肤",
+        "amount": 168,
+        "date": "2026-05-27"
+      },
+      {
+        "item": "助眠香薰礼盒",
+        "category": "家居日用",
+        "amount": 159,
+        "date": "2026-05-30"
+      }
+    ]
+  },
+  "u_food": {
+    "order_history": [
+      {
+        "item": "海盐苏打饼干 4 盒",
+        "category": "食品",
+        "amount": 25,
+        "date": "2026-04-08"
+      },
+      {
+        "item": "混合麦片早餐装 1kg",
+        "category": "食品",
+        "amount": 49,
+        "date": "2026-04-22"
+      },
+      {
+        "item": "每日坚果尝鲜装 7 包",
+        "category": "食品",
+        "amount": 39,
+        "date": "2026-05-10"
+      },
+      {
+        "item": "冻干水果脆混合装",
+        "category": "食品",
+        "amount": 59,
+        "date": "2026-05-26"
+      },
+      {
+        "item": "桌面收纳盒三件套",
+        "category": "家居日用",
+        "amount": 45,
+        "date": "2026-06-02"
+      }
+    ]
+  },
+  "u_gear": {
+    "order_history": [
+      {
+        "item": "蓝牙耳机 Pro",
+        "category": "数码",
+        "amount": 299,
+        "date": "2026-04-15"
+      },
+      {
+        "item": "快充充电宝 20000mAh",
+        "category": "数码",
+        "amount": 139,
+        "date": "2026-04-30"
+      },
+      {
+        "item": "智能手环 5 代",
+        "category": "数码",
+        "amount": 459,
+        "date": "2026-05-18"
+      },
+      {
+        "item": "户外露营折叠椅",
+        "category": "运动户外",
+        "amount": 129,
+        "date": "2026-05-25"
+      },
+      {
+        "item": "碳纤维登山杖一对",
+        "category": "运动户外",
+        "amount": 219,
+        "date": "2026-06-01"
+      }
+    ]
+  }
+}
