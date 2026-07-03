@@ -89,13 +89,14 @@ def _make_agent_factory(cfg: dict):
     tool_schemas = cfg.get("tool_schemas", DEFAULT_TOOL_SCHEMAS)
     tool_impls = cfg.get("tool_impls", DEFAULT_TOOL_IMPLS)
 
-    def make_agent(recorder):
+    def make_agent(recorder, user_context=None):
         return ChatSession(
             system_prompt=system_prompt,
             audit_recorder=recorder,
             tool_schemas=tool_schemas,
             tool_impls=tool_impls,
             model=model,
+            user_context=user_context,
         )
 
     return make_agent

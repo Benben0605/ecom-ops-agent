@@ -24,7 +24,20 @@ TOOLS = {
 }
 
 tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA, ESCALATE_TO_HUMAN_SCHEMA]
+
+# 接受执行层注入 user_id 的工具（user_id 是会话身份，不进 tool schema、不让 LLM 填）
+_USER_CONTEXT_TOOLS = {"recommend_product"}
+# 工具内鉴权的工具：执行层注入 role，工具自己拒非商家（安全属性靠代码不靠 prompt）
+_ROLE_GATED_TOOLS = {"analyze_ops"}
 _system_prompt = "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于利用工具解决问题。必填参数齐全时直接调用工具，不要因为选填参数缺失而反问；但若必填参数缺失且无法从对话中合理推断，应先向用户询问澄清，不要猜测或随意填充必填参数。如果是电商业务相关但无工具，调用 escalate_to_human 转人工，不要硬调最接近的工具兜底。只陈述工具/检索输出明确给出的事实；不合并、不外推、不把某政策条目的细节（操作步骤/时效/运费/适用范围）搬到另一条目上（如换货政策只写了时限和运费、没有操作步骤，就别拿退货流程的步骤当换货步骤；某条目没有的就说没有、按该政策申请即可）；工具没提的（取消/额外时效/适用范围/操作步骤）一律不编"
+
+# role 注入（Phase3）：prompt 只给身份事实 + 一条通用受众门控元规则；
+# 工具受众标签归各 schema description（"商家工具"）；游客零注入 = 1.0 现状
+_ROLE_PROMPTS = {
+    "merchant": "\n\n当前用户身份：商家（本店经营者）。",
+    "customer": "\n\n当前用户身份：顾客。",
+}
+_AUDIENCE_GATE = "工具描述中标注了受众的（如「商家工具」），只对身份匹配的用户使用。"
 
 class ChatSession():
     """单会话多轮对话，内置工具路由与历史压缩。
@@ -36,9 +49,17 @@ class ChatSession():
 
     def __init__(self, system_prompt: str = _system_prompt, audit_recorder=None,
                  tool_schemas: list | None = None, tool_impls: dict | None = None,
-                 session_id: str | None = None, model: str = config.MODEL):
+                 session_id: str | None = None, model: str = config.MODEL,
+                 user_context: dict | None = None):
         self.id = session_id or uuid4().hex
         self.model = model  # 主推理模型，实验 harness 可按变体换；压缩摘要仍走 config.MODEL
+        # 用户上下文（Phase3）：{"role", "user_id"} 两字段正交——role 是会话属性（生产来自登录态），
+        # 拼进 system_prompt 喂 L1 路由；user_id 是顾客画像库主键，留给工具派发注入喂 L2 个性化。
+        # session 只消费上下文、不解析画像（画像解析在工具内）
+        self.user_id = (user_context or {}).get("user_id")
+        self.role = (user_context or {}).get("role")
+        if self.role:
+            system_prompt = system_prompt + _ROLE_PROMPTS[self.role] + _AUDIENCE_GATE
         self.messages = [{"role": "system", "content": system_prompt} ]
         self.audit_recorder = audit_recorder or AuditRecorder()
         # 默认全工具（单 Agent 不变）；专家 Agent 传子集
@@ -74,6 +95,10 @@ class ChatSession():
                 start = time.perf_counter()
                 try:
                     func_dict = json.loads(tool_call.function.arguments)
+                    if func_name in _USER_CONTEXT_TOOLS and self.user_id:
+                        func_dict["user_id"] = self.user_id
+                    if func_name in _ROLE_GATED_TOOLS:
+                        func_dict["role"] = self.role
                     result = self.tool_impls[func_name](**func_dict)
                     elapsed = (time.perf_counter() - start) * 1000
                     tool_audit = ToolAudit(
@@ -251,7 +276,9 @@ class SupervisorAgent:
             audit_recorder=self._leaf_recorder,
             tool_schemas=MERCHANT_TOOL_SCHEMAS,
             tool_impls=MERCHANT_TOOL_IMPLS,
-            session_id=self.id
+            session_id=self.id,
+            # 商家专家会话天然商家身份，过 analyze_ops 工具内鉴权
+            user_context={"role": "merchant"},
         )
         response = merchant_session.chat(query)
         self._message_recorder.record(

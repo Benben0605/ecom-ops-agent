@@ -5,7 +5,10 @@ from pathlib import Path
 _ORDERS = json.loads((Path(__file__).parents[2] / "data" / "orders.json").read_text())
 
 
-def run(category: str | None = None, metric : str | None = None) -> str:
+def run(category: str | None = None, metric : str | None = None, role: str | None = None) -> str:
+    # 鉴权在工具内=物理保证（role 由执行层注入，不让 LLM 填）；prompt 门控只是省调用的礼貌层
+    if role != "merchant":
+        return "经营数据仅商家可见。如需查看店铺运营数据，请使用商家账号登录。"
     orders = list(_ORDERS.values())
     if category:
         orders = [o for o in orders if category in o["category"] or o["category"] in category]

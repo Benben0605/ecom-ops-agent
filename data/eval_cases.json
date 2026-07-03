@@ -108,6 +108,7 @@
     {
         "id": "case_007",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "美妆护肤卖的怎么样",
         "should_call_tool": true,
         "expected_calls": [
@@ -128,6 +129,7 @@
     {
         "id": "case_008",
         "bucket": "direct",
+        "role": "merchant",
         "question": "运动户外的运营数据",
         "should_call_tool": true,
         "expected_calls": [
@@ -147,6 +149,7 @@
     {
         "id": "case_009",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "运动户外品类卖的怎么样",
         "should_call_tool": true,
         "expected_calls": [
@@ -230,6 +233,7 @@
     {
         "id": "case_014",
         "bucket": "multi_intent",
+        "role": "merchant",
         "question": "和我的订单10002类似的产品有哪些，最近有搞活动吗，哪些卖的比较好？",
         "should_call_tool": true,
         "expected_calls": [
@@ -432,6 +436,7 @@
     {
         "id": "case_024",
         "bucket": "direct",
+        "role": "merchant",
         "question": "看一下家居日用的运营数据",
         "should_call_tool": true,
         "expected_calls": [
@@ -451,6 +456,7 @@
     {
         "id": "case_025",
         "bucket": "direct",
+        "role": "merchant",
         "question": "食品类目的销售数据给我看下",
         "should_call_tool": true,
         "expected_calls": [
@@ -580,6 +586,7 @@
     {
         "id": "case_032",
         "bucket": "rephrased",
+        "role": "merchant",
         "question": "想看看店里数码这块的生意情况",
         "should_call_tool": true,
         "expected_calls": [
@@ -652,6 +659,7 @@
     {
         "id": "case_036",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "数码里哪些卖得最好",
         "should_call_tool": true,
         "expected_calls": [
@@ -670,6 +678,7 @@
     {
         "id": "case_037",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "我想知道美妆这块的客单价",
         "should_call_tool": true,
         "expected_calls": [
@@ -707,6 +716,7 @@
     {
         "id": "case_039",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "家居用品有多少订单还没发货",
         "should_call_tool": true,
         "expected_calls": [
@@ -780,6 +790,7 @@
     {
         "id": "case_043",
         "bucket": "confusing",
+        "role": "merchant",
         "question": "运动户外整体经营情况如何",
         "should_call_tool": true,
         "expected_calls": [
@@ -843,6 +854,7 @@
     {
         "id": "case_046",
         "bucket": "multi_intent",
+        "role": "merchant",
         "question": "推荐点数码的，再告诉我数码这块销量如何",
         "should_call_tool": true,
         "expected_calls": [
@@ -894,6 +906,7 @@
     {
         "id": "case_048",
         "bucket": "multi_intent",
+        "role": "merchant",
         "question": "运动户外有啥推荐，能七天无理由退货吗，对了运营数据也看下",
         "should_call_tool": true,
         "expected_calls": [
@@ -1004,6 +1017,7 @@
     {
         "id": "case_052",
         "bucket": "multi_intent",
+        "role": "merchant",
         "question": "食品卖得怎么样，对了能退吗",
         "should_call_tool": true,
         "expected_calls": [
@@ -1091,9 +1105,14 @@
         "id": "case_060",
         "bucket": "clarify",
         "question": "随便给我推荐点东西吧",
-        "should_call_tool": false,
-        "expected_calls": [],
-        "trap": "recommend缺必填category，正解=澄清问类目，而非空调或乱选类目"
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {}
+            }
+        ],
+        "trap": "游客缺类目（Phase3 call-first迁移）：category降为选填后正解=空参调用→工具内兜底返回引导文本→模型转述；clarify语义从『不调工具』迁为『最终答案在引导用户选类目』，不许瞎猜类目"
     },
     {
         "id": "case_061",
@@ -1136,6 +1155,7 @@
     {
         "id": "case_063",
         "bucket": "complex_task",
+        "role": "merchant",
         "question": "看下我们店订单数最多的是哪款商品、属于哪个类目，就照那个类目给我推荐几款搭配，预算别超过全店客单价。",
         "should_call_tool": true,
         "expected_calls": [
@@ -1160,6 +1180,7 @@
     {
         "id": "case_064",
         "bucket": "complex_task",
+        "role": "merchant",
         "question": "美妆护肤和家居日用这两个类目，哪个销售额更高？销售额高的那个类目，再帮我推荐两款不超过它客单价的商品。",
         "should_call_tool": true,
         "expected_calls": [
@@ -1232,6 +1253,7 @@
     {
         "id": "case_066",
         "bucket": "complex_task",
+        "role": "merchant",
         "question": "给运动户外类目推荐 3 款 100 块以内的；要是这个类目凑不够 3 款，就用全店畅销品补齐到 3 款。",
         "should_call_tool": true,
         "expected_calls": [
@@ -1307,6 +1329,7 @@
     {
         "id": "case_069",
         "bucket": "complex_task",
+        "role": "merchant",
         "question": "查一下全店客单价是多少；然后美妆护肤和家居日用各推荐一款，价格都不超过这个客单价。",
         "should_call_tool": true,
         "expected_calls": [
@@ -1337,6 +1360,7 @@
     {
         "id": "case_070",
         "bucket": "complex_task",
+        "role": "merchant",
         "question": "帮我对比美妆护肤和食品这两个类目：各自的销售额、客单价、还有按销量最高的那款商品分别是什么。",
         "should_call_tool": true,
         "expected_calls": [
@@ -1414,6 +1438,201 @@
             "给美妆护肤推荐了不超过130元的两款（洁面乳/面霜）",
             "给家居日用推荐了送长辈的商品",
             "家居推荐不受130预算限制（包含高于130元的商品，如159元的助眠香薰礼盒）"
+        ]
+    },
+    {
+        "id": "case_073",
+        "bucket": "role_flip",
+        "role": "merchant",
+        "question": "最近有什么好卖的？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {}
+            }
+        ],
+        "trap": "role-flip商家面：无role注入时模型靠tone猜，『好卖的』两面都自然；商家问=看热销经营数据，赌tone中性被猜成客户→recommend",
+        "golden_answer_points": [
+            "转述了热销商品排名"
+        ]
+    },
+    {
+        "id": "case_074",
+        "bucket": "role_flip",
+        "role": "customer",
+        "user_id": "u_beauty",
+        "question": "最近有什么好卖的？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            }
+        ],
+        "trap": "role-flip客户面(073镜像)：同句话客户问=想要热门推荐；赌tone猜成商家→误调analyze_ops=经营数据泄露给客户",
+        "golden_answer_points": [
+            "推荐了美妆护肤类目的商品"
+        ]
+    },
+    {
+        "id": "case_075",
+        "bucket": "role_flip",
+        "role": "merchant",
+        "question": "坚果类卖得怎么样？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {
+                    "category": "食品"
+                }
+            }
+        ],
+        "trap": "role-flip商家侧直球：类目级经营数据（坚果→食品类目）；对照076同话题客户版",
+        "golden_answer_points": [
+            "转述了食品类目的经营数据"
+        ]
+    },
+    {
+        "id": "case_076",
+        "bucket": "role_flip",
+        "role": "customer",
+        "user_id": "u_food",
+        "question": "你们坚果卖得好吗？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "食品"
+                }
+            }
+        ],
+        "trap": "政策刀：客户问『卖得好吗』=购买决策要社交证明→recommend；analyze_ops对客户=经营数据泄露，误调即红。点12描述标签只标『商家工具』拦不住tone误判，赌标签版会栽",
+        "golden_answer_points": [
+            "推荐了食品类目的商品"
+        ]
+    },
+    {
+        "id": "case_077",
+        "bucket": "role_flip",
+        "question": "最近有什么好卖的？",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "analyze_ops",
+                "tool_params": {}
+            }
+        ],
+        "trap": "role未知+role-flip query（call-first+工具内authz语义）：游客调 analyze 被工具弹回=无泄露；正解=转述『经营数据仅商家可见』或给顾客向替代，不得出现真实经营数字（点8/11 刹车已下沉到代码）",
+        "golden_answer_points": [
+            "说明经营数据仅商家可见（或给出顾客向替代建议）",
+            "没有透露任何真实经营数字"
+        ]
+    },
+    {
+        "id": "case_078",
+        "bucket": "personalization",
+        "role": "customer",
+        "user_id": "u_beauty",
+        "question": "随便推荐点东西吧",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤"
+                }
+            }
+        ],
+        "trap": "personalization三胞胎(078/079/080同句)：无画像该反问类目(缺必填)，有画像该用fav直答；before(无注入)赌反问=is_hit红，after应转绿且三用户各推各的fav",
+        "golden_answer_points": [
+            "推荐了美妆护肤类目的商品",
+            "没有反问类目、直接给出推荐"
+        ]
+    },
+    {
+        "id": "case_079",
+        "bucket": "personalization",
+        "role": "customer",
+        "user_id": "u_food",
+        "question": "随便推荐点东西吧",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "食品"
+                }
+            }
+        ],
+        "trap": "personalization三胞胎：同078，fav=食品",
+        "golden_answer_points": [
+            "推荐了食品类目的商品",
+            "没有反问类目、直接给出推荐"
+        ]
+    },
+    {
+        "id": "case_080",
+        "bucket": "personalization",
+        "role": "customer",
+        "user_id": "u_gear",
+        "question": "随便推荐点东西吧",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "数码"
+                }
+            }
+        ],
+        "trap": "personalization三胞胎：同078，fav=数码",
+        "golden_answer_points": [
+            "推荐了数码类目的商品",
+            "没有反问类目、直接给出推荐"
+        ]
+    },
+    {
+        "id": "case_081",
+        "bucket": "personalization",
+        "question": "随便推荐点东西吧",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {}
+            }
+        ],
+        "trap": "personalization游客对照（call-first语义）：与078-080同句但无画像——工具查不到偏好返回引导文本，正解=转述引导选类目、不瞎猜类目；对照组证明个性化只作用于有画像会话",
+        "golden_answer_points": [
+            "引导用户选择商品类目",
+            "没有瞎猜类目直接推荐"
+        ]
+    },
+    {
+        "id": "case_082",
+        "bucket": "personalization",
+        "role": "customer",
+        "user_id": "u_beauty",
+        "question": "推荐个100块以内的东西",
+        "should_call_tool": true,
+        "expected_calls": [
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {
+                    "category": "美妆护肤",
+                    "budget": 100
+                }
+            }
+        ],
+        "trap": "显式参数优先级：budget=100显式给出>画像购买力high；赌after注入画像后把高购买力当预算放宽、推荐199+高价款",
+        "golden_answer_points": [
+            "推荐了美妆护肤类目的商品",
+            "推荐的商品不超过100元（如69元的氨基酸温和洁面乳）"
         ]
     }
 ]

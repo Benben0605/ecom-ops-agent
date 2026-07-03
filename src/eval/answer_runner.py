@@ -13,12 +13,19 @@ def _run_dir() -> Path:
     d.mkdir(parents=True, exist_ok=True)
     return d
 
-def _default_make_agent(recorder):
-    return ChatSession(audit_recorder=recorder)
+def _case_user_context(case: dict) -> dict | None:
+    """case 的 role（会话属性）/ user_id（画像库主键）两字段正交、各自可选；都缺 = 游客零注入"""
+    if "role" in case or "user_id" in case:
+        return {"role": case.get("role"), "user_id": case.get("user_id")}
+    return None
+
+def _default_make_agent(recorder, user_context=None):
+    return ChatSession(audit_recorder=recorder, user_context=user_context)
 
 def eval_answer_run(make_agent=_default_make_agent, run_dir: Path | None = None,
                     case_filter: list[str] | None = None) -> Path:
-    """跑全套评估。make_agent(recorder)->agent 决定打哪套 agent（单/多 Agent 对比用）。
+    """跑全套评估。make_agent(recorder, user_context)->agent 决定打哪套 agent（单/多 Agent 对比用）。
+    user_context 由 case 的 role/user_id 字段组装（都缺席=游客=None，零注入）。
     agent 须满足 ChatSession 同接口：.chat(str)->str / .id / .messages / 注入 recorder。
     run_dir 指定 trace 落盘目录（实验 harness 传隔离目录）；不传则自动建 logs/runs/<ts>/。
     case_filter 给一组 case_id 时只跑子集（冒烟验证省 API 预算）。
@@ -34,7 +41,7 @@ def eval_answer_run(make_agent=_default_make_agent, run_dir: Path | None = None,
 
     run_map_list = []
     for case in eval_cases:
-        session = make_agent(AuditRecorder(recorder_path=run / "audit.jsonl"))
+        session = make_agent(AuditRecorder(recorder_path=run / "audit.jsonl"), _case_user_context(case))
         session.chat(case["question"])
         MessageRecorder(recorder_path=run / "session_messages.jsonl").record(
             {
@@ -57,7 +64,8 @@ def per_case_run(case_id: str, run_count: int):
     run_map_list, current_count = [], 1
     case = next((c for c in eval_cases if c["id"] == case_id), None)
     while case is not None and current_count <= run_count:
-        session = ChatSession(audit_recorder=AuditRecorder(recorder_path=run / "audit.jsonl"))
+        session = ChatSession(audit_recorder=AuditRecorder(recorder_path=run / "audit.jsonl"),
+                              user_context=_case_user_context(case))
         session.chat(case["question"])
         MessageRecorder(recorder_path=run / "session_messages.jsonl").record(
             {
