@@ -174,8 +174,12 @@ def score_one(verdict: dict) -> dict:
     }
 
 
-def run_l2(run_dir: Path | None = None):
+def run_l2(run_dir: Path | None = None, case_filter: list[str] | None = None):
+    """case_filter 给一组 case_id 时只判子集——L2 是逐 case LLM 调用，判前过滤省的是真实 API 费用。"""
     inputs = load_l2_inputs(run_dir)
+    if case_filter is not None:
+        keep = set(case_filter)
+        inputs = {cid: item for cid, item in inputs.items() if cid in keep}
     results = {}
     for case_id, item in inputs.items():
         try:

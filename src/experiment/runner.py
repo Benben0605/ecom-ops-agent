@@ -19,6 +19,7 @@ from datetime import datetime
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 from src import config
@@ -43,6 +44,9 @@ class Variant:
     config: dict = field(default_factory=dict)
 
 
+VALID_STAGES = ("run", "l1", "l2")
+
+
 @dataclass
 class Experiment:
     name: str
@@ -50,6 +54,28 @@ class Experiment:
     variants: list[Variant]
     n: int = 1  # 每变体重复跑数；当前实现 n=1，>1 留后续（manifest 记录，供后续 CI 扩展）
     case_filter: list[str] | None = None  # agent 轨只跑这组 case_id（冒烟验证省预算）；None=全集
+    bucket_filter: list[str] | None = None  # 按桶选 case；与 case_filter 取并集
+    stages: tuple = VALID_STAGES  # 选择性执行：("run",) / ("l1","l2") / 任意组合，默认全跑
+    exp_id: str | None = None  # 复用已有实验目录（judge-only 时从它的 trace 取答案，不重跑 agent）
+
+
+def _resolve_case_ids(exp: Experiment) -> list[str] | None:
+    """case_filter ∪ bucket_filter 展开成 case_id 列表；两者都空 = None（全集）。
+    未知 case_id / bucket 响亮报错，不静默跳过。"""
+    if not exp.case_filter and not exp.bucket_filter:
+        return None
+    cases = json.loads((ROOT / "data" / "eval_cases.json").read_text(encoding="utf-8"))
+    all_ids = {c["id"] for c in cases}
+    all_buckets = {c["bucket"] for c in cases}
+    ids = set(exp.case_filter or [])
+    if unknown := ids - all_ids:
+        raise ValueError(f"case_filter 里有不存在的 case_id: {sorted(unknown)}")
+    if exp.bucket_filter:
+        if unknown := set(exp.bucket_filter) - all_buckets:
+            raise ValueError(f"bucket_filter 里有不存在的桶: {sorted(unknown)}（现有: {sorted(all_buckets)}）")
+        wanted = set(exp.bucket_filter)
+        ids |= {c["id"] for c in cases if c["bucket"] in wanted}
+    return sorted(ids)
 
 
 # ========== provenance ==========
@@ -66,6 +92,16 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _entrypoint() -> str:
+    argv0 = sys.argv[0] if sys.argv else ""
+    if not argv0:
+        return "unknown"
+    try:
+        return str(Path(argv0).resolve().relative_to(ROOT))
+    except ValueError:
+        return argv0
+
+
 def _provenance(exp: Experiment) -> dict:
     sha = {"eval_cases": _sha256(ROOT / "data" / "eval_cases.json")}
     if exp.track == "retrieval":
@@ -74,6 +110,7 @@ def _provenance(exp: Experiment) -> dict:
     return {
         "git_commit": _git_commit(),
         "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "entrypoint": _entrypoint(),
         "n": exp.n,
         "track": exp.track,
         "dataset_sha": sha,
@@ -195,30 +232,58 @@ def _write(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def run_variant(exp: Experiment, variant: Variant, exp_dir: Path) -> Path:
+def _existing_run_dirs(trace_dir: Path) -> list[Path]:
+    """按 run_<i> 数字序返回已有 trace 子目录（judge-only 时判分范围跟着 trace 走，n 由 trace 决定）。"""
+    dirs = [d for d in trace_dir.glob("run_*") if (d / "run_map.json").exists()]
+    return sorted(dirs, key=lambda d: int(d.name.removeprefix("run_") or 0))
+
+
+def _filter_case_results(per_run: list[dict], case_ids: list[str] | None) -> list[dict]:
+    if case_ids is None:
+        return per_run
+    keep = set(case_ids)
+    return [{cid: r for cid, r in run.items() if cid in keep} for run in per_run]
+
+
+def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
+                case_ids: list[str] | None = None) -> Path:
     vdir = exp_dir / "variants" / variant.name
     trace_dir = vdir / "trace"
     eval_dir = vdir / "eval"
     trace_dir.mkdir(parents=True, exist_ok=True)
     eval_dir.mkdir(parents=True, exist_ok=True)
+    stages = tuple(exp.stages)
+    if unknown := set(stages) - set(VALID_STAGES):
+        raise ValueError(f"未知 stage: {sorted(unknown)}（可选: {VALID_STAGES}）")
 
     if exp.track == "agent":
-        make_agent = _make_agent_factory(variant.config)
         # 每个 case 跑 N 次：第 i 次写独立子目录 trace/run_<i>/，judge 原样跑（一 case 一 session），
         # 再在 harness 层把 N 份判分聚成 per-run 通过率。judge 零改动。
-        per_run_l1, per_run_l2 = [], []
-        for i in range(1, exp.n + 1):
-            rdir = trace_dir / f"run_{i}"
-            eval_answer_run(make_agent=make_agent, run_dir=rdir, case_filter=exp.case_filter)
-            per_run_l1.append(eval_judge(run_dir=rdir))
-            per_run_l2.append(run_l2(run_dir=rdir))
+        if "run" in stages:
+            make_agent = _make_agent_factory(variant.config)
+            for i in range(1, exp.n + 1):
+                eval_answer_run(make_agent=make_agent, run_dir=trace_dir / f"run_{i}",
+                                case_filter=case_ids)
 
-        l1_case, l1_metrics = _aggregate_l1(per_run_l1)
-        l2_case, l2_metrics = _aggregate_l2(per_run_l2)
-        _write(eval_dir / "l1_case_result.json", l1_case)
-        _write(eval_dir / "l1_metrics.json", l1_metrics)
-        _write(eval_dir / "l2_case_result.json", l2_case)
-        _write(eval_dir / "l2_metrics.json", l2_metrics)
+        run_dirs = _existing_run_dirs(trace_dir)
+        if ("l1" in stages or "l2" in stages) and not run_dirs:
+            raise FileNotFoundError(
+                f"变体 [{variant.name}] 没有可判的 trace（{trace_dir}）——"
+                f"先带 run 阶段跑一次，或用 exp_id 指向已有实验目录"
+            )
+
+        if "l1" in stages:
+            per_run_l1 = _filter_case_results(
+                [eval_judge(run_dir=rd) for rd in run_dirs], case_ids)
+            l1_case, l1_metrics = _aggregate_l1(per_run_l1)
+            _write(eval_dir / "l1_case_result.json", l1_case)
+            _write(eval_dir / "l1_metrics.json", l1_metrics)
+
+        if "l2" in stages:
+            per_run_l2 = [run_l2(run_dir=rd, case_filter=case_ids) for rd in run_dirs]
+            l2_case, l2_metrics = _aggregate_l2(per_run_l2)
+            _write(eval_dir / "l2_case_result.json", l2_case)
+            _write(eval_dir / "l2_metrics.json", l2_metrics)
 
     elif exp.track == "retrieval":
         chunker = variant.config.get("chunker", chunk_baseline)
@@ -244,20 +309,41 @@ def _config_summary(cfg: dict) -> dict:
 
 
 def run_experiment(exp: Experiment) -> Path:
-    exp_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{exp.name}"
-    exp_dir = EXPERIMENTS_ROOT / exp_id
-    exp_dir.mkdir(parents=True, exist_ok=True)
+    if exp.exp_id:  # 复用模式：judge-only / 补阶段，写回同一实验目录
+        exp_id = exp.exp_id
+        exp_dir = EXPERIMENTS_ROOT / exp_id
+        if not exp_dir.exists():
+            raise FileNotFoundError(f"exp_id 不存在：{exp_dir}——复用模式必须指向已有实验")
+    else:
+        exp_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{exp.name}"
+        exp_dir = EXPERIMENTS_ROOT / exp_id
+        exp_dir.mkdir(parents=True, exist_ok=True)
+
+    case_ids = _resolve_case_ids(exp)
+    scope_desc = f"{len(case_ids)} cases" if case_ids is not None else "全集"
+    print(f">>> stages={list(exp.stages)} | 范围={scope_desc}")
 
     for v in exp.variants:
         print(f">>> 跑变体 [{v.name}] ...")
-        run_variant(exp, v, exp_dir)
+        run_variant(exp, v, exp_dir, case_ids=case_ids)
 
+    old = json.loads((exp_dir / "manifest.json").read_text(encoding="utf-8")) \
+        if (exp_dir / "manifest.json").exists() else {}
     manifest = {
         "exp_id": exp_id,
         "name": exp.name,
         "track": exp.track,
         "variants": [{"name": v.name, "config": _config_summary(v.config)} for v in exp.variants],
         "provenance": _provenance(exp),
+        # 每次调用（含复用模式补阶段）追加一条，全历史可追溯
+        "stage_runs": old.get("stage_runs", []) + [{
+            "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "stages": list(exp.stages),
+            "case_filter": exp.case_filter,
+            "bucket_filter": exp.bucket_filter,
+            "resolved_case_count": len(case_ids) if case_ids is not None else "all",
+            "n": exp.n,
+        }],
     }
     _write(exp_dir / "manifest.json", manifest)
 
@@ -280,21 +366,116 @@ def list_experiments() -> list[dict]:
     return out
 
 
+def _cli() -> Experiment:
+    """命令行入口（单变体 A_baseline；多变体 A/B 仍走下方编码式）。示例：
+    uv run python -m src.experiment.runner --name phase3_l2 --buckets role_flip,personalization --n 3
+    uv run python -m src.experiment.runner --name rejudge --exp-id <已有exp_id> --stages l2 --cases case_073,case_075
+    """
+    import argparse
+    p = argparse.ArgumentParser(description="实验 harness：选择性执行 run/l1/l2，case_id/bucket 过滤")
+    p.add_argument("--name", required=True, help="实验名（进 exp_id）")
+    p.add_argument("--stages", default="run,l1,l2", help="逗号分隔：run,l1,l2 的任意组合")
+    p.add_argument("--cases", default=None, help="逗号分隔 case_id，如 case_073,case_075")
+    p.add_argument("--buckets", default=None, help="逗号分隔桶名，如 role_flip,personalization；与 --cases 取并集")
+    p.add_argument("--exp-id", default=None, help="复用已有实验目录（judge-only 从其 trace 取答案）")
+    p.add_argument("--n", type=int, default=1, help="每 case 跑几次（仅 run 阶段用；judge-only 时 n 跟 trace 走）")
+    a = p.parse_args()
+    return Experiment(
+        name=a.name,
+        track="agent",
+        variants=[Variant("A_baseline", {})],
+        n=a.n,
+        case_filter=a.cases.split(",") if a.cases else None,
+        bucket_filter=a.buckets.split(",") if a.buckets else None,
+        stages=tuple(a.stages.split(",")),
+        exp_id=a.exp_id,
+    )
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1:  # 带参 = CLI 模式；不带参 = 下方编码式实验
+        run_experiment(_cli())
+        raise SystemExit(0)
+
     # 变体定义（A/B 两套配置），全量/指定 case 两种跑法共用
     variants = [
         Variant("A_baseline", {}),
-        Variant("B_concise", {"system_prompt": "你是私域电商运营客服助手，负责订单查询、售后/政策咨询、商品推荐和运营数据分析，善于利用工具解决问题。涉及多政策主题的问题,分别检索每个主题（退换货问题分别查退货政策和换货政策）。必填参数齐全时直接调用工具，不要因为选填参数缺失而反问；但若必填参数缺失且无法从对话中合理推断，应先向用户询问澄清，不要猜测或随意填充必填参数。如果是电商业务相关但无工具，调用 escalate_to_human 转人工，不要硬调最接近的工具兜底。只陈述工具/检索输出明确给出的事实；不合并、不外推、不把某政策条目的细节（操作步骤/时效/运费/适用范围）搬到另一条目上（如换货政策只写了时限和运费、没有操作步骤，就别拿退货流程的步骤当换货步骤；某条目没有的就说没有、按该政策申请即可）；工具没提的（取消/额外时效/适用范围/操作步骤）一律不编"}),
     ]
 
     # ① 全量跑（72 case × 变体数 + L2 judge，几分钟 + 有 API 费用）
     # run_experiment(Experiment(name="prompt_ab", track="agent", variants=variants))
 
-    # ② prompt 引导 agent 对退换货发两次 kb_search(退货政策 + 换货政策)
+    # ② prompt("涉及多政策主题的问题,分别检索每个主题（退换货问题分别查退货政策和换货政策）") 引导 agent 对退换货发两次 kb_search(退货政策 + 换货政策)
+    # run_experiment(Experiment(
+    #     name="case049_exchange_recall_prompt_ab",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 4,
+    #     case_filter=["case_049"],
+    # ))
+
+    # ③ 引入 persona前，看“case_017修复时给 system_prompt 加「善于根据用户角色」+ 给 analyze_ops 贴「商家工具」标签“的效果
+    # case_017 query“订单数据怎样了？10001。“
+    # 从实验结果看：成功将工具调用从 analyze_ops（商家侧） 引向 recommand_product（客户侧）
+    # run_experiment(Experiment(
+    #     name="case017_fix_prompt_ab",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 4,
+    #     case_filter=["case_017"],
+    # ))
+
+    # ④ 引入 persona 前，看桶 role_flip 的表现
+    # 从实验结果看：在没有persona的情况下，都指向 analyze
+    # run_experiment(Experiment(
+    #     name="role_flip_before_persona",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 4,
+    #     case_filter=["case_073", "case_074", "case_075", "case_076", "case_077"],
+    # ))
+
+    # ⑤ 引入 persona 前，看桶 personalization 的表现
+    # 预期： “随便推荐点东西吧“都指向 recommand，且param category 是必填，agent指导用户clarify
+    # 从实验结果看：@todo
+    # run_experiment(Experiment(
+    #     name="answer_before_persona",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 4,
+    #     case_filter=["case_078", "case_079", "case_080", "case_081", "case_082"],
+    # ))
+
+    # ⑥ 修 074/076 商家/顾客问“最近有什么好卖的？“都指向analyze 的问题，system_prompt 加 _AUDIENCE_GATE
+    # 预期： 修好074/076
+    # 从实验结果看：修好了075，未修好076。_AUDIENCE_GATE 解决了路由问题，076 堵住调用analyze，但是堵住没疏，模型知道要调用recommend，但是一直让用户clarify
+    # run_experiment(Experiment(
+    #     name="with_tool_audience_gate_after_persona",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 4,
+    #     case_filter=["case_074", "case_076"],
+    # ))
+
+    # ⑦ 现状076 顾客问“你们坚果卖得好吗？“， agent 知道要调recommend，但是一直让用户clarify，做疏通
+    # 预期： 076 直接调用recommend
+    # 从实验结果看：076 转绿（recommend description 划入「热不热门」意图面）
+    # run_experiment(Experiment(
+    #     name="audience_gate_recommend_product_schema_nudge",
+    #     track="agent",
+    #     variants=variants,
+    #     n = 3,
+    #     case_filter=["case_073", "case_074", "case_075", "case_076", "case_077",
+    #                  "case_078", "case_079", "case_080", "case_081", "case_082"],
+    # )) 
+
+    # ⑧ 增加 role-flip, personalization， 完整FACTUAL BUCKET 跑 l1/l2 judge
+    # 新能力示例：bucket 过滤 + 全阶段（等价 CLI：--name phase3_two_buckets --buckets role_flip,personalization --n 3）
     run_experiment(Experiment(
-        name="case049_exchange_recall_prompt_ab",
+        name="phase3_factual_buckets_l1_l2",
         track="agent",
         variants=variants,
-        n = 4,
-        case_filter=["case_049"],
+        n=3,
+        bucket_filter=["direct", "rephrased", "multi_intent", "confusing", "complex_task",
+                   "role_flip", "personalization"],
     ))
