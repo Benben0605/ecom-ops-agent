@@ -13,7 +13,10 @@ ROOT = Path(__file__).parents[3]
 
 # 只有事实桶才有 golden、才进 L2；clarify/negative/weakness 缺席即信号
 # complex_task（2.0 Phase1）也是事实桶：有 golden（=分解后的子目标）+ tool 输出可对照
-FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing", "complex_task"}
+# role_flip/personalization（Phase3）也是：golden=身份/画像下的正确内容面
+# （个性化类目、authz 弹回话术、零经营数字），归因句/弹回文本都在 tool output 池可对照
+FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing", "complex_task",
+                   "role_flip", "personalization"}
 
 # orders.json 是冻结的 eval fixture：部分 golden 按订单状态 key（如已签收/已取消单删 eta，
 # 见 case_021/044）。数据一旦改动，这些状态相关的 golden 可能烂掉，必须复核后更新此哈希。

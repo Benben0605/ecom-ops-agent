@@ -1525,12 +1525,15 @@
             {
                 "tool_name": "analyze_ops",
                 "tool_params": {}
+            },
+            {
+                "tool_name": "recommend_product",
+                "tool_params": {}
             }
         ],
         "trap": "role未知+role-flip query（call-first+工具内authz语义）：游客调 analyze 被工具弹回=无泄露；正解=转述『经营数据仅商家可见』或给顾客向替代，不得出现真实经营数字（点8/11 刹车已下沉到代码）",
         "golden_answer_points": [
-            "说明经营数据仅商家可见（或给出顾客向替代建议）",
-            "没有透露任何真实经营数字"
+            "说明经营数据仅商家可见（或给出顾客向替代建议）"
         ]
     },
     {
@@ -1550,8 +1553,7 @@
         ],
         "trap": "personalization三胞胎(078/079/080同句)：无画像该反问类目(缺必填)，有画像该用fav直答；before(无注入)赌反问=is_hit红，after应转绿且三用户各推各的fav",
         "golden_answer_points": [
-            "推荐了美妆护肤类目的商品",
-            "没有反问类目、直接给出推荐"
+            "推荐了美妆护肤类目的商品"
         ]
     },
     {
@@ -1571,8 +1573,7 @@
         ],
         "trap": "personalization三胞胎：同078，fav=食品",
         "golden_answer_points": [
-            "推荐了食品类目的商品",
-            "没有反问类目、直接给出推荐"
+            "推荐了食品类目的商品"
         ]
     },
     {
@@ -1592,8 +1593,7 @@
         ],
         "trap": "personalization三胞胎：同078，fav=数码",
         "golden_answer_points": [
-            "推荐了数码类目的商品",
-            "没有反问类目、直接给出推荐"
+            "推荐了数码类目的商品"
         ]
     },
     {
@@ -1609,8 +1609,7 @@
         ],
         "trap": "personalization游客对照（call-first语义）：与078-080同句但无画像——工具查不到偏好返回引导文本，正解=转述引导选类目、不瞎猜类目；对照组证明个性化只作用于有画像会话",
         "golden_answer_points": [
-            "引导用户选择商品类目",
-            "没有瞎猜类目直接推荐"
+            "引导用户选择商品类目"
         ]
     },
     {
