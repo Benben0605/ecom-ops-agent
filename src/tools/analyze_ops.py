@@ -13,7 +13,9 @@ def run(category: str | None = None, metric : str | None = None, role: str | Non
     if category:
         orders = [o for o in orders if category in o["category"] or o["category"] in category]
     if not orders:
-        return f"没有「{category}」类目的订单数据"
+        # 给模型出口：列出有数据的类目，别让错误信息成死胡同（坚果→模型可自己归到食品重试）
+        existing = "、".join(sorted({o["category"] for o in _ORDERS.values()}))
+        return f"没有「{category}」类目的订单数据；有订单数据的类目：{existing}"
 
     scope = f"「{category}」类目" if category else "全店"
     valid = [o for o in orders if o["status"] != "已取消"]  # GMV 口径剔除已取消
@@ -26,7 +28,10 @@ def run(category: str | None = None, metric : str | None = None, role: str | Non
         sales_by_item[o["item"]] += o["amount"]
     hot_sales = Counter(sales_by_item).most_common(3)
     hot_count_lines = "按订单数口径：\n" + "\n".join(f"{i}. {item}（{n} 单）" for i, (item, n) in enumerate(hot_count, 1))
-    hot_sales_lines = "按销售额口径：\n" + "\n".join(f"{i}. {item}（¥{n}）" for i, (item, n) in enumerate(hot_sales, 1))
+    # 销售额口径带成交单数：不留白，模型无需拿单价心算「卖了几单」（避免池外算术）
+    hot_sales_lines = "按销售额口径：\n" + "\n".join(
+        f"{i}. {item}（¥{n}，{sum(1 for o in valid if o['item'] == item)} 单）"
+        for i, (item, n) in enumerate(hot_sales, 1))
     if metric == "count":
         hot_lines = hot_count_lines
     elif metric == "sales":
@@ -38,7 +43,7 @@ def run(category: str | None = None, metric : str | None = None, role: str | Non
     status_line = "，".join(f"{s} {n} 单" for s, n in status.items())
 
     return (
-        f"{scope}运营概况（{len(valid)} 笔有效订单）：\n"
+        f"根据历史订单数据，{scope}运营概况（{len(valid)} 笔有效订单；以下为订单统计，非在售商品清单）：\n"
         f"- 总销售额：¥{gmv}\n"
         f"- 客单价：¥{aov:.0f}\n"
         f"- 热销 Top3：\n{hot_lines}\n"
