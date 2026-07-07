@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.dashboard.experiment_adapter import build_l1_experiment_dashboard_data
+
 
 ROOT = Path(__file__).parents[2]
 
@@ -105,8 +107,21 @@ def _finalize_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
     return bucket
 
 
-def build_dashboard_data(root: Path | None = None) -> dict[str, Any]:
+def build_dashboard_data(
+    root: Path | None = None,
+    exp_id: str | None = None,
+    variant: str | None = None,
+) -> dict[str, Any]:
     root = root or ROOT
+    if exp_id or variant:
+        if not exp_id or not variant:
+            raise ValueError("读取 experiment dashboard 需要同时提供 exp_id 和 variant")
+        return build_l1_experiment_dashboard_data(
+            root=root,
+            exp_id=exp_id,
+            variant=variant,
+        )
+
     data_dir = root / "data"
     logs_dir = root / "logs"
 
@@ -320,6 +335,10 @@ def build_dashboard_data(root: Path | None = None) -> dict[str, Any]:
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "context": {
+            "mode": "legacy",
+            "warnings": [],
+        },
         "paths": {name: str(path) for name, path in paths.items()},
         "metrics": metrics,
         "persisted_metrics": persisted_metrics,

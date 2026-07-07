@@ -59,9 +59,24 @@ def _normalize_text(value: Any) -> str:
     return " ".join(str(value or "").split())
 
 
-def build_l2_issue_id(case_id: str, verdict: str, assertion: str) -> str:
+def build_l2_issue_id(
+    case_id: str,
+    verdict: str,
+    assertion: str,
+    exp_id: str | None = None,
+    variant: str | None = None,
+    run_index: int | str | None = None,
+) -> str:
+    namespace = []
+    if exp_id or variant or run_index is not None:
+        namespace = [
+            _normalize_text(exp_id),
+            _normalize_text(variant),
+            _normalize_text(run_index),
+        ]
     raw = "\0".join(
         [
+            *namespace,
             _normalize_text(case_id),
             _normalize_text(verdict).lower(),
             _normalize_text(assertion),
@@ -82,13 +97,20 @@ def build_l2_root_cause_summary(
     assertion: str,
     root_cause: str,
     root_cause_note: str = "",
+    exp_id: str | None = None,
+    variant: str | None = None,
+    run_index: int | None = None,
 ) -> str:
     label = root_cause_label(root_cause)
     note = root_cause_note.strip()
     cause = f"{label}；说明：{note}" if note else label
+    context = ""
+    if exp_id or variant or run_index is not None:
+        run_label = f"run_{run_index}" if run_index is not None else "run"
+        context = f" | {exp_id or 'experiment'} / {variant or 'variant'} / {run_label}"
     return "\n".join(
         [
-            f"{case_id} | L2 忠实轴 | {verdict.upper()}",
+            f"{case_id}{context} | L2 忠实轴 | {verdict.upper()}",
             f"断言：“{assertion}”",
             f"根因：{cause}",
         ]
@@ -126,13 +148,29 @@ def _normalize_annotation(record: dict[str, Any]) -> dict[str, Any] | None:
     verdict = _normalize_text(record.get("verdict") or "unsupported").lower()
     root_cause = _normalize_text(record.get("root_cause"))
     root_cause_note = str(record.get("root_cause_note") or "").strip()
+    exp_id = _normalize_text(record.get("exp_id"))
+    variant = _normalize_text(record.get("variant"))
+    run_index_raw = record.get("run_index")
+    run_index: int | None = None
+    if run_index_raw not in (None, ""):
+        try:
+            run_index = int(run_index_raw)
+        except (TypeError, ValueError):
+            run_index = None
 
     if not case_id or not assertion or not root_cause:
         return None
     if verdict != "unsupported":
         return None
 
-    issue_id = build_l2_issue_id(case_id, verdict, assertion)
+    issue_id = build_l2_issue_id(
+        case_id,
+        verdict,
+        assertion,
+        exp_id=exp_id or None,
+        variant=variant or None,
+        run_index=run_index,
+    )
     updated_at = (
         str(record.get("updated_at") or record.get("created_at") or "").strip()
         or datetime.now().astimezone().isoformat(timespec="seconds")
@@ -150,12 +188,21 @@ def _normalize_annotation(record: dict[str, Any]) -> dict[str, Any] | None:
         "root_cause_note": root_cause_note,
         "updated_at": updated_at,
     }
+    if exp_id:
+        normalized["exp_id"] = exp_id
+    if variant:
+        normalized["variant"] = variant
+    if run_index is not None:
+        normalized["run_index"] = run_index
     normalized["summary"] = build_l2_root_cause_summary(
         case_id=case_id,
         verdict=verdict,
         assertion=assertion,
         root_cause=root_cause,
         root_cause_note=root_cause_note,
+        exp_id=exp_id or None,
+        variant=variant or None,
+        run_index=run_index,
     )
     normalized["hypothesis"] = build_l2_harness_hypothesis(
         assertion=assertion,

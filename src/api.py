@@ -32,6 +32,9 @@ class L2RootCauseAnnotationRequest(BaseModel):
     verdict: str = "unsupported"
     root_cause: str
     root_cause_note: str = ""
+    exp_id: str | None = None
+    variant: str | None = None
+    run_index: int | None = None
 
 def get_or_create(session_id: str) -> ChatSession:
     if session_id in _sessions:
@@ -49,13 +52,29 @@ def chat_endpoint(request: RequestMessage) -> ResponseMessage:
     return ResponseMessage(session_id=session.id, assistant_message=chat_response)
 
 @app.get("/api/eval-dashboard")
-def eval_dashboard_endpoint() -> dict:
-    return build_dashboard_data()
+def eval_dashboard_endpoint(
+    exp_id: str | None = None,
+    variant: str | None = None,
+) -> dict:
+    try:
+        return build_dashboard_data(exp_id=exp_id, variant=variant)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/l2-eval-dashboard")
-def l2_eval_dashboard_endpoint() -> dict:
-    return build_l2_dashboard_data()
+def l2_eval_dashboard_endpoint(
+    exp_id: str | None = None,
+    variant: str | None = None,
+) -> dict:
+    try:
+        return build_l2_dashboard_data(exp_id=exp_id, variant=variant)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.get("/api/experiments")

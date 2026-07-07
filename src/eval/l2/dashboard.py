@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.dashboard.experiment_adapter import build_l2_experiment_dashboard_data
 from src.eval.l2.annotations import (
     ROOT_CAUSE_OPTIONS,
     annotation_path,
@@ -100,8 +101,21 @@ def _source_context(root: Path) -> tuple[dict[str, dict[str, Any]], dict[str, li
     return cases_by_id, tool_outputs_by_case
 
 
-def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
+def build_l2_dashboard_data(
+    root: Path | None = None,
+    exp_id: str | None = None,
+    variant: str | None = None,
+) -> dict[str, Any]:
     root = root or ROOT
+    if exp_id or variant:
+        if not exp_id or not variant:
+            raise ValueError("读取 experiment dashboard 需要同时提供 exp_id 和 variant")
+        return build_l2_experiment_dashboard_data(
+            root=root,
+            exp_id=exp_id,
+            variant=variant,
+        )
+
     result_path = root / "logs" / "l2_eval_result.json"
     raw_results = _load_json(result_path, {})
     if not isinstance(raw_results, dict):
@@ -220,6 +234,10 @@ def build_l2_dashboard_data(root: Path | None = None) -> dict[str, Any]:
 
     return {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "context": {
+            "mode": "legacy",
+            "warnings": [],
+        },
         "source": {
             "path": str(result_path),
             "exists": result_path.exists(),

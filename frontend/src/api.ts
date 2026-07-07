@@ -19,6 +19,29 @@ export interface DashboardMetrics {
   misfire_count: number;
 }
 
+export interface DashboardContext {
+  mode: "legacy" | "experiment";
+  exp_id?: string;
+  experiment_name?: string;
+  variant?: string;
+  track?: string;
+  n?: number;
+  provenance?: {
+    git_commit?: string;
+    timestamp?: string;
+    entrypoint?: string;
+    n?: number;
+    track?: string;
+    dataset_sha?: Record<string, string>;
+  };
+  dataset_sha_match?: boolean | null;
+  dataset_sha_manifest?: string | null;
+  dataset_sha_current?: string | null;
+  warnings?: string[];
+  source_paths?: string[];
+  source_modified_at?: string | null;
+}
+
 export interface RoutingBreakdown {
   bucket?: string;
   tool_name?: string;
@@ -79,10 +102,30 @@ export interface RoutingCase {
   last_assistant_message: string;
   audits: AuditRecord[];
   messages_by_session: Record<string, SessionMessage[]>;
+  n?: number;
+  pass_rate?: number | null;
+  hit_rate?: number | null;
+  misfire_rate?: number | null;
+  experiment_runs?: L1ExperimentRun[];
+}
+
+export interface L1ExperimentRun {
+  run_index: number;
+  session_id?: string;
+  called_tools: string[];
+  missing_tools: string[];
+  unexpected_tools: string[];
+  is_hit: boolean | null;
+  is_misfire: boolean;
+  passed: boolean;
+  audits: AuditRecord[];
+  messages: SessionMessage[];
+  last_assistant_message: string;
 }
 
 export interface EvalDashboardData {
   generated_at: string;
+  context?: DashboardContext;
   metrics: DashboardMetrics;
   breakdowns: {
     by_bucket: Array<RoutingBreakdown & { bucket: string }>;
@@ -142,6 +185,9 @@ export interface L2RootCauseAnnotation {
   updated_at: string;
   summary: string;
   hypothesis: string;
+  exp_id?: string;
+  variant?: string;
+  run_index?: number;
 }
 
 export interface SaveL2RootCauseAnnotationPayload {
@@ -151,6 +197,9 @@ export interface SaveL2RootCauseAnnotationPayload {
   verdict: "unsupported";
   root_cause: string;
   root_cause_note: string;
+  exp_id?: string;
+  variant?: string;
+  run_index?: number;
 }
 
 export interface L2Case {
@@ -177,10 +226,33 @@ export interface L2Case {
   has_faith_issue: boolean;
   has_issue: boolean;
   issue_types: Array<"miss" | "unsupported">;
+  n?: number;
+  pass_rate?: number | null;
+  hit_rate?: number | null;
+  faithfulness_rate?: number | null;
+  experiment_runs?: L2ExperimentRun[];
+}
+
+export interface L2ExperimentRun {
+  run_index: number;
+  session_id?: string;
+  answer: string;
+  tool_outputs: JsonValue[];
+  golden_points: JsonValue[];
+  hit_axis: HitAxisItem[];
+  faithfulness_axis: FaithfulnessAxisItem[];
+  score: L2Case["score"];
+  miss_count: number;
+  unsupported_count: number;
+  annotation_count: number;
+  has_issue: boolean;
+  issue_types: Array<"miss" | "unsupported">;
+  passed: boolean;
 }
 
 export interface L2DashboardData {
   generated_at: string;
+  context?: DashboardContext;
   metrics: L2Stats;
   breakdowns: {
     by_bucket: Array<L2Stats & { bucket: string }>;
@@ -205,6 +277,22 @@ export interface ChatResponse {
   assistant_message: string;
 }
 
+export interface DashboardSelection {
+  source: "legacy" | "experiment";
+  expId?: string;
+  variant?: string;
+}
+
+function dashboardUrl(path: string, selection?: DashboardSelection) {
+  if (selection?.source !== "experiment" || !selection.expId || !selection.variant) {
+    return path;
+  }
+  const q = new URLSearchParams();
+  q.set("exp_id", selection.expId);
+  q.set("variant", selection.variant);
+  return `${path}?${q.toString()}`;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -220,11 +308,11 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export const fetchEvalDashboard = () =>
-  request<EvalDashboardData>("/api/eval-dashboard");
+export const fetchEvalDashboard = (selection?: DashboardSelection) =>
+  request<EvalDashboardData>(dashboardUrl("/api/eval-dashboard", selection));
 
-export const fetchL2Dashboard = () =>
-  request<L2DashboardData>("/api/l2-eval-dashboard");
+export const fetchL2Dashboard = (selection?: DashboardSelection) =>
+  request<L2DashboardData>(dashboardUrl("/api/l2-eval-dashboard", selection));
 
 export const saveL2RootCauseAnnotation = (payload: SaveL2RootCauseAnnotationPayload) =>
   request<L2RootCauseAnnotation>("/api/l2-root-cause-annotations", {

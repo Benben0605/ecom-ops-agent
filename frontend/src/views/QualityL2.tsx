@@ -29,6 +29,7 @@ type Issue = "miss" | "unsupported";
 type SaveAnnotation = (
   payload: SaveL2RootCauseAnnotationPayload,
 ) => Promise<L2RootCauseAnnotation>;
+type AnnotationContext = Pick<SaveL2RootCauseAnnotationPayload, "exp_id" | "variant" | "run_index">;
 
 const FALLBACK_ROOT_CAUSE_OPTIONS: RootCauseOption[] = [
   {
@@ -41,6 +42,7 @@ const CUSTOM_ROOT_CAUSE_VALUE = "__custom_root_cause__";
 
 const percent = (value: number | null) =>
   value == null ? "—" : `${(value * 100).toFixed(value === 0 || value === 1 ? 0 : 2)}%`;
+const count = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(2);
 
 const showJson = (value: JsonValue) =>
   typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -96,11 +98,13 @@ function RootCauseEditor({
   caseId,
   axis,
   options,
+  context,
   onSave,
 }: {
   caseId: string;
   axis: FaithfulnessAxisItem;
   options: RootCauseOption[];
+  context?: AnnotationContext;
   onSave: SaveAnnotation;
 }) {
   const [rootCauseMode, setRootCauseMode] = useState(
@@ -151,6 +155,7 @@ function RootCauseEditor({
         verdict: "unsupported",
         root_cause: rootCause,
         root_cause_note: rootCauseNote,
+        ...context,
       });
       setLastSaved(saved);
       setStatus("saved");
@@ -256,20 +261,104 @@ function AnnotationRollup({ summaries }: { summaries: string[] }) {
   );
 }
 
+function L2ExperimentRuns({
+  item,
+  rootCauseOptions,
+  onSaveAnnotation,
+}: {
+  item: L2Case;
+  rootCauseOptions: RootCauseOption[];
+  onSaveAnnotation: SaveAnnotation;
+}) {
+  return (
+    <div className="experiment-run-list">
+      {item.experiment_runs?.map((run, index) => (
+        <details className={`drawer-section experiment-run ${run.passed ? "ok" : "bad"}`} key={run.run_index} open={!run.passed || index === 0}>
+          <summary>
+            <span>{run.run_index}</span>
+            run_{run.run_index}
+            <small>
+              {run.passed ? "pass" : "fail"} · 命中 {run.score.hit_ok}/{run.score.hit_total} · 忠实 {run.score.faith_ok}/{run.score.faith_total}
+            </small>
+          </summary>
+          <div className="details-content">
+            <section className="five-part answer-part compact-answer">
+              <span>Answer</span>
+              <MarkdownContent content={run.answer || "—"} />
+            </section>
+            <div className="axis-list run-axis">
+              <b>命中轴</b>
+              {run.hit_axis.map((axis, axisIndex) => (
+                <div className={`axis-item axis-${axis.verdict}`} key={`${axis.point}-${axisIndex}`}>
+                  <VerdictBadge verdict={axis.verdict} />
+                  <div>
+                    <p>{axis.point}</p>
+                    {axis.evidence != null && (
+                      <>
+                        <small>evidence</small>
+                        <pre>{showJson(axis.evidence)}</pre>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!run.hit_axis.length && <div className="empty-inline">没有命中轴裁决</div>}
+            </div>
+            <div className="axis-list run-axis">
+              <b>忠实轴</b>
+              {run.faithfulness_axis.map((axis, axisIndex) => (
+                <div className={`axis-item axis-${axis.verdict}`} key={axis.issue_id || `${axis.assertion}-${axisIndex}`}>
+                  <VerdictBadge verdict={axis.verdict} />
+                  <div>
+                    <p>{axis.assertion}</p>
+                    <small>evidence</small>
+                    <pre>{showJson(axis.evidence)}</pre>
+                    {axis.verdict === "unsupported" && (
+                      <RootCauseEditor
+                        caseId={item.case_id}
+                        axis={axis}
+                        options={rootCauseOptions}
+                        context={{ run_index: run.run_index }}
+                        onSave={onSaveAnnotation}
+                      />
+                    )}
+                  </div>
+                </div>
+              ))}
+              {!run.faithfulness_axis.length && <div className="empty-inline">没有忠实轴裁决</div>}
+            </div>
+            <details className="drawer-section nested-section">
+              <summary><span>T</span>tool_outputs <small>{run.tool_outputs.length} items</small></summary>
+              <div className="details-content raw-list">
+                {run.tool_outputs.map((output, outputIndex) => <pre key={outputIndex}>{showJson(output)}</pre>)}
+              </div>
+            </details>
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function L2Drawer({
   item,
   rootCauseOptions,
+  annotationContext,
   onSaveAnnotation,
   onClose,
 }: {
   item: L2Case | null;
   rootCauseOptions: RootCauseOption[];
+  annotationContext?: Omit<AnnotationContext, "run_index">;
   onSaveAnnotation: SaveAnnotation;
   onClose: () => void;
 }) {
-  const summaries = item?.faithfulness_axis.flatMap((axis) =>
+  const summaries = item?.experiment_runs?.flatMap((run) =>
+    run.faithfulness_axis.flatMap((axis) => axis.annotation?.summary ? [axis.annotation.summary] : []),
+  ) ?? item?.faithfulness_axis.flatMap((axis) =>
     axis.annotation?.summary ? [axis.annotation.summary] : [],
   ) ?? [];
+  const isExperiment = Boolean(item?.experiment_runs?.length);
 
   return (
     <CaseDrawer
@@ -288,7 +377,22 @@ function L2Drawer({
       {item && (
         <div className="l2-detail">
           <section className="five-part"><span>Question</span><p>{item.question}</p></section>
-          <section className="five-part answer-part"><span>Answer</span><MarkdownContent content={item.answer || "—"} /></section>
+          {!isExperiment && <section className="five-part answer-part"><span>Answer</span><MarkdownContent content={item.answer || "—"} /></section>}
+          {isExperiment && (
+            <>
+              <section className="five-part experiment-summary">
+                <span>Experiment summary</span>
+                <p>pass {percent(item.pass_rate ?? null)} · n={item.n ?? item.experiment_runs?.length ?? 0} · 命中 {percent(item.hit_rate ?? item.score.hit_rate)} · 忠实 {percent(item.faithfulness_rate ?? item.score.faithfulness_rate)}</p>
+              </section>
+              <L2ExperimentRuns
+                item={item}
+                rootCauseOptions={rootCauseOptions}
+                onSaveAnnotation={async (payload) => onSaveAnnotation({ ...payload, ...(annotationContext ?? {}) })}
+              />
+            </>
+          )}
+          {!isExperiment && (
+            <>
           <details className="drawer-section axis-section" open>
             <summary><span>H</span>命中轴 · golden point <small>{item.score.hit_ok} / {item.score.hit_total}</small></summary>
             <div className="details-content axis-list">
@@ -324,6 +428,7 @@ function L2Drawer({
                         caseId={item.case_id}
                         axis={axis}
                         options={rootCauseOptions}
+                        context={annotationContext}
                         onSave={onSaveAnnotation}
                       />
                     )}
@@ -348,6 +453,9 @@ function L2Drawer({
               ))}
             </div>
           </details>
+            </>
+          )}
+          {isExperiment && <AnnotationRollup summaries={summaries} />}
         </div>
       )}
     </CaseDrawer>
@@ -383,9 +491,13 @@ export default function QualityL2({ query }: QualityProps) {
   if (!query.data) return null;
 
   const { data } = query;
+  const isExperiment = data.context?.mode === "experiment";
   const rootCauseOptions = data.annotations?.root_cause_options?.length
     ? data.annotations.root_cause_options
     : FALLBACK_ROOT_CAUSE_OPTIONS;
+  const annotationContext = isExperiment
+    ? { exp_id: data.context?.exp_id, variant: data.context?.variant }
+    : undefined;
 
   const saveAnnotation: SaveAnnotation = async (payload) => {
     const annotation = await saveL2RootCauseAnnotation(payload);
@@ -396,10 +508,11 @@ export default function QualityL2({ query }: QualityProps) {
   return (
     <div className="page-stack">
       {query.error && <div className="error-banner"><span>刷新失败：{query.error}</span><button type="button" onClick={() => void query.refetch()}>重试</button></div>}
+      {data.context?.warnings?.map((warning) => <div className="source-warning" key={warning}>{warning}</div>)}
       <section className="compact-metrics three">
         <MetricCard compact label="L2 命中率" value={percent(data.metrics.hit_rate)} note={`${data.metrics.hit_ok} / ${data.metrics.hit_total} golden points`} />
         <MetricCard compact label="L2 忠实率" value={percent(data.metrics.faithfulness_rate)} note={`${data.metrics.faith_ok} / ${data.metrics.faith_total} assertions`} />
-        <MetricCard compact label="Case 通过率" value={percent(data.metrics.case_pass_rate)} note={`${data.metrics.passed_case_count} / ${data.metrics.case_count} cases`} />
+        <MetricCard compact label="Case 通过率" value={percent(data.metrics.case_pass_rate)} note={`${count(data.metrics.passed_case_count)} / ${data.metrics.case_count} cases`} />
       </section>
       <section className="panel">
         <div className="panel-heading">
@@ -432,10 +545,11 @@ export default function QualityL2({ query }: QualityProps) {
                   <td><b className="case-id">{item.case_id}</b></td>
                   <td><span className="bucket-name">{item.bucket}</span></td>
                   <td className="truncate-cell" title={item.question}>{item.question}</td>
-                  <td className={item.has_hit_issue ? "text-danger" : "text-success"}>{item.score.hit_ok}/{item.score.hit_total}</td>
-                  <td className={item.has_faith_issue ? "text-danger" : "text-success"}>{item.score.faith_ok}/{item.score.faith_total}</td>
+                  <td className={item.has_hit_issue ? "text-danger" : "text-success"}>{isExperiment ? percent(item.hit_rate ?? item.score.hit_rate) : `${item.score.hit_ok}/${item.score.hit_total}`}</td>
+                  <td className={item.has_faith_issue ? "text-danger" : "text-success"}>{isExperiment ? percent(item.faithfulness_rate ?? item.score.faithfulness_rate) : `${item.score.faith_ok}/${item.score.faith_total}`}</td>
                   <td>
                     <div className="badge-row">
+                      {isExperiment && <span className={item.pass_rate === 1 ? "rate-pill good" : "rate-pill bad"}>pass {percent(item.pass_rate ?? null)}</span>}
                       {item.issue_types.map((issue) => <VerdictBadge key={issue} verdict={issue} />)}
                       {(item.annotation_count ?? 0) > 0 && <span className="annotation-pill">root cause {item.annotation_count}</span>}
                       {!item.issue_types.length && <span className="muted">—</span>}
@@ -452,6 +566,7 @@ export default function QualityL2({ query }: QualityProps) {
       <L2Drawer
         item={selected}
         rootCauseOptions={rootCauseOptions}
+        annotationContext={annotationContext}
         onSaveAnnotation={saveAnnotation}
         onClose={() => setSelectedCaseId(null)}
       />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  type DashboardSelection,
   fetchEvalDashboard,
   fetchL2Dashboard,
   type EvalDashboardData,
@@ -51,10 +52,18 @@ function useQuery<T>(fetcher: () => Promise<T>): QueryState<T> {
   return { data, loading, refreshing, error, refetch: load };
 }
 
-export function useEval(): QueryState<EvalDashboardData> {
-  return useQuery(fetchEvalDashboard);
+export function useEval(selection: DashboardSelection): QueryState<EvalDashboardData> {
+  const fetcher = useCallback(
+    () => fetchEvalDashboard(selection),
+    [selection.source, selection.expId, selection.variant],
+  );
+  return useQuery(fetcher);
 }
 
-export function useL2(): QueryState<L2DashboardData> {
-  return useQuery(fetchL2Dashboard);
+export function useL2(selection: DashboardSelection): QueryState<L2DashboardData> {
+  const fetcher = useCallback(
+    () => fetchL2Dashboard(selection),
+    [selection.source, selection.expId, selection.variant],
+  );
+  return useQuery(fetcher);
 }

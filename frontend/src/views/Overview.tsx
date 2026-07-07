@@ -23,11 +23,16 @@ function LoadError({ message, retry }: { message: string; retry: () => void }) {
 
 export default function Overview({ evalQuery, l2Query }: OverviewProps) {
   if (evalQuery.loading || l2Query.loading) return <div className="skeleton-page"><div className="skeleton hero-skeleton" /><div className="skeleton chart-skeleton" /><div className="skeleton method-skeleton" /></div>;
+  const warnings = [
+    ...(evalQuery.data?.context?.warnings ?? []),
+    ...(l2Query.data?.context?.warnings ?? []),
+  ].filter((warning, index, list) => list.indexOf(warning) === index);
 
   return (
     <div className="overview-page page-stack">
       {evalQuery.error && <LoadError message={evalQuery.error} retry={() => void evalQuery.refetch()} />}
       {l2Query.error && <LoadError message={l2Query.error} retry={() => void l2Query.refetch()} />}
+      {warnings.map((warning) => <div className="source-warning" key={warning}>{warning}</div>)}
       {evalQuery.data && l2Query.data && <>
         <section className="hero-metrics" aria-label="核心指标">
           <MetricCard label="路由准确率" value={percent(evalQuery.data.metrics.routing_accuracy)} detail={`${evalQuery.data.metrics.route_hit_count} / ${evalQuery.data.metrics.positive_case_count}`} note="分母=正样本：期望工具命中比例" />
