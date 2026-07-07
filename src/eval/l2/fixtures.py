@@ -6,6 +6,7 @@ judge prompt 每改一版都跑这个，别再靠单 run + 肉眼。
 """
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from src.eval.l2.judge import judge_one
@@ -15,15 +16,28 @@ FIXTURES = ROOT / "data" / "l2_judge_fixtures.json"
 OUT = ROOT / "logs" / "l2_judge_fixtures_result.json"
 
 N = 8
+MAX_WORKERS = 16  # judge_one 是纯 IO（LLM API 调用），线程池并发省的是真实等待时间
 
 
-def run_fixtures(n: int = N):
+def run_fixtures(
+    n: int = N,
+    max_workers: int = MAX_WORKERS,
+):
     fixtures = json.loads(FIXTURES.read_text(encoding="utf-8"))
-    results: dict = {}
-    for fx in fixtures:
-        item = {k: fx[k] for k in ("question", "answer", "tool_outputs", "golden_points")}
-        verdicts = [judge_one(item) for _ in range(n)]
+    items = [
+        {k: fx[k] for k in ("question", "answer", "tool_outputs", "golden_points")}
+        for fx in fixtures
+    ]
+    # 所有 (case × n 次重复) 任务一次性铺开并发，而不是逐 case 串行等 n 次跑完
+    jobs = [item for item in items for _ in range(n)]
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        flat_verdicts = list(pool.map(judge_one, jobs))
+    verdicts_by_case = [
+        flat_verdicts[i * n:(i + 1) * n] for i in range(len(fixtures))
+    ]
 
+    results: dict = {}
+    for fx, verdicts in zip(fixtures, verdicts_by_case):
         print(f"\n[{fx['case_id']}]")
         anchor_records = []
         for anchor in fx["anchors"]:

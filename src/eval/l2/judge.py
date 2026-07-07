@@ -1,6 +1,7 @@
 import hashlib
 import json
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from openai import OpenAI
@@ -174,28 +175,32 @@ def score_one(verdict: dict) -> dict:
     }
 
 
-def run_l2(run_dir: Path | None = None, case_filter: list[str] | None = None):
-    """case_filter 给一组 case_id 时只判子集——L2 是逐 case LLM 调用，判前过滤省的是真实 API 费用。"""
+def _judge_one_safe(case_id_item: tuple[str, dict]) -> tuple[str, dict]:
+    case_id, item = case_id_item
+    try:
+        verdict = judge_one(item)
+    except Exception as e:  # 单 case 失败不拖垮整轮（无人值守过夜）
+        return case_id, {"bucket": item["bucket"], "question": item["question"],
+                          "answer": item["answer"], "error": str(e)}
+    return case_id, {
+        "bucket": item["bucket"],
+        "question": item["question"],
+        "answer": item["answer"],
+        "verdict": verdict,
+        "score": score_one(verdict),
+    }
+
+
+def run_l2(run_dir: Path | None = None, case_filter: list[str] | None = None, max_workers: int = 16):
+    """case_filter 给一组 case_id 时只判子集——L2 是逐 case LLM 调用，判前过滤省的是真实 API 费用。
+    跨 case 用线程池并发（judge_one 是纯 IO），省的是真实等待时间。"""
     inputs = load_l2_inputs(run_dir)
     if case_filter is not None:
         keep = set(case_filter)
         inputs = {cid: item for cid, item in inputs.items() if cid in keep}
-    results = {}
-    for case_id, item in inputs.items():
-        try:
-            verdict = judge_one(item)
-        except Exception as e:  # 单 case 失败不拖垮整轮（无人值守过夜）
-            results[case_id] = {"bucket": item["bucket"], "question": item["question"],
-                                "answer": item["answer"], "error": str(e)}
-            continue
-        results[case_id] = {
-            "bucket": item["bucket"],
-            "question": item["question"],
-            "answer": item["answer"],
-            "verdict": verdict,
-            "score": score_one(verdict),
-        }
-    return results
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        pairs = list(pool.map(_judge_one_safe, inputs.items()))
+    return dict(pairs)
 
 
 if __name__ == "__main__":

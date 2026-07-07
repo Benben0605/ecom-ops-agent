@@ -8,6 +8,9 @@
 - agent：变体改 system_prompt / 工具子集，跑 eval_cases 产 trace，L1(eval_judge)+L2(eval_l2_judge) 同判。
 - retrieval：变体改 chunker，跑 eval_retrieval 出 Recall@k/P@k/MRR。
 
+variants：同一 Experiment 下的多套配置（name + config dict），harness 逐一跑完后可用
+  experiment_compare 出 A/B headline delta。单臂跑只放一个 Variant 即可。
+
 产物布局：
   logs/experiments/<exp_id>/
     manifest.json
