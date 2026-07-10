@@ -7,6 +7,7 @@
 轨道（track）——一次 run 只走一条，不白跑无关层：
 - agent：变体改 system_prompt / 工具子集，跑 eval_cases 产 trace，L1(eval_judge)+L2(eval_l2_judge) 同判。
 - retrieval：变体改 chunker，跑 eval_retrieval 出 Recall@k/P@k/MRR。
+- l2_fixtures_judge：被测对象是 L2 judge 本身——冻结夹具 N 次跑 judge_one，出锚点 recall/假阳率。
 
 variants：同一 Experiment 下的多套配置（name + config dict），harness 逐一跑完后可用
   experiment_compare 出 A/B headline delta。单臂跑只放一个 Variant 即可。
@@ -15,7 +16,8 @@ variants：同一 Experiment 下的多套配置（name + config dict），harnes
   logs/experiments/<exp_id>/
     manifest.json
     variants/<name>/trace/   (agent 轨：audit.jsonl/run_map.json/session_messages.jsonl)
-    variants/<name>/eval/    (l1_metrics.json l1_case_result.json l2_* / retrieval_eval_result.json)
+    variants/<name>/eval/    (l1_metrics.json l1_case_result.json l2_* / retrieval_eval_result.json
+                              / l2_fixtures_metrics.json l2_fixtures_case_result.json)
 """
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -34,6 +36,7 @@ from src.agent import (
 )
 from src.eval.answer_runner import eval_answer_run
 from src.eval.judge import eval_judge
+from src.eval.l2.fixtures import N as L2_FIXTURES_N, fixture_case_index, run_fixtures
 from src.eval.l2.judge import run_l2
 from src.eval.retrieval import run as run_retrieval, chunk_baseline
 
@@ -48,18 +51,27 @@ class Variant:
 
 
 VALID_STAGES = ("run", "l1", "l2")
+FIXTURES_TRACK = "l2_fixtures_judge"
 
 
 @dataclass
 class Experiment:
     name: str
-    track: str  # "agent" | "retrieval"
+    track: str  # "agent" | "retrieval" | "l2_fixtures_judge"
     variants: list[Variant]
     n: int = 1  # 每变体重复跑数；当前实现 n=1，>1 留后续（manifest 记录，供后续 CI 扩展）
-    case_filter: list[str] | None = None  # agent 轨只跑这组 case_id（冒烟验证省预算）；None=全集
+    case_filter: list[str] | None = None  # 只跑这组 case_id（冒烟验证省预算）；None=全集
     bucket_filter: list[str] | None = None  # 按桶选 case；与 case_filter 取并集
     stages: tuple = VALID_STAGES  # 选择性执行：("run",) / ("l1","l2") / 任意组合，默认全跑
     exp_id: str | None = None  # 复用已有实验目录（judge-only 时从它的 trace 取答案，不重跑 agent）
+
+
+def _case_index(track: str) -> list[tuple[str, str]]:
+    """(case_id, bucket) 全集——过滤条件的解析基准。fixtures 轨的 case 来自夹具文件，不是 eval_cases。"""
+    if track == FIXTURES_TRACK:
+        return fixture_case_index()
+    cases = json.loads((ROOT / "data" / "eval_cases.json").read_text(encoding="utf-8"))
+    return [(c["id"], c["bucket"]) for c in cases]
 
 
 def _resolve_case_ids(exp: Experiment) -> list[str] | None:
@@ -67,9 +79,9 @@ def _resolve_case_ids(exp: Experiment) -> list[str] | None:
     未知 case_id / bucket 响亮报错，不静默跳过。"""
     if not exp.case_filter and not exp.bucket_filter:
         return None
-    cases = json.loads((ROOT / "data" / "eval_cases.json").read_text(encoding="utf-8"))
-    all_ids = {c["id"] for c in cases}
-    all_buckets = {c["bucket"] for c in cases}
+    index = _case_index(exp.track)
+    all_ids = {cid for cid, _ in index}
+    all_buckets = {b for _, b in index}
     ids = set(exp.case_filter or [])
     if unknown := ids - all_ids:
         raise ValueError(f"case_filter 里有不存在的 case_id: {sorted(unknown)}")
@@ -77,7 +89,7 @@ def _resolve_case_ids(exp: Experiment) -> list[str] | None:
         if unknown := set(exp.bucket_filter) - all_buckets:
             raise ValueError(f"bucket_filter 里有不存在的桶: {sorted(unknown)}（现有: {sorted(all_buckets)}）")
         wanted = set(exp.bucket_filter)
-        ids |= {c["id"] for c in cases if c["bucket"] in wanted}
+        ids |= {cid for cid, b in index if b in wanted}
     return sorted(ids)
 
 
@@ -106,7 +118,10 @@ def _entrypoint() -> str:
 
 
 def _provenance(exp: Experiment) -> dict:
-    sha = {"eval_cases": _sha256(ROOT / "data" / "eval_cases.json")}
+    if exp.track == FIXTURES_TRACK:  # 被测对象是 judge，数据集是夹具而非 eval_cases
+        sha = {"l2_judge_fixtures": _sha256(ROOT / "data" / "l2_judge_fixtures.json")}
+    else:
+        sha = {"eval_cases": _sha256(ROOT / "data" / "eval_cases.json")}
     if exp.track == "retrieval":
         sha["retrieval_eval"] = _sha256(ROOT / "data" / "retrieval_eval.json")
         sha["corpus"] = _sha256(ROOT / "data" / "faq" / "corpus.json")
@@ -253,13 +268,13 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
     vdir = exp_dir / "variants" / variant.name
     trace_dir = vdir / "trace"
     eval_dir = vdir / "eval"
-    trace_dir.mkdir(parents=True, exist_ok=True)
     eval_dir.mkdir(parents=True, exist_ok=True)
     stages = tuple(exp.stages)
-    if unknown := set(stages) - set(VALID_STAGES):
-        raise ValueError(f"未知 stage: {sorted(unknown)}（可选: {VALID_STAGES}）")
 
     if exp.track == "agent":
+        trace_dir.mkdir(parents=True, exist_ok=True)  # 只有 agent 轨产 trace
+        if unknown := set(stages) - set(VALID_STAGES):  # stages 只对 agent 轨有意义
+            raise ValueError(f"未知 stage: {sorted(unknown)}（可选: {VALID_STAGES}）")
         # 每个 case 跑 N 次：第 i 次写独立子目录 trace/run_<i>/，judge 原样跑（一 case 一 session），
         # 再在 harness 层把 N 份判分聚成 per-run 通过率。judge 零改动。
         if "run" in stages:
@@ -292,6 +307,11 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
         chunker = variant.config.get("chunker", chunk_baseline)
         run_retrieval(chunker=chunker, out_dir=eval_dir)
 
+    elif exp.track == FIXTURES_TRACK:
+        fx_case, fx_metrics = run_fixtures(n=exp.n, case_filter=case_ids)
+        _write(eval_dir / "l2_fixtures_case_result.json", fx_case)
+        _write(eval_dir / "l2_fixtures_metrics.json", fx_metrics)
+
     else:
         raise ValueError(f"未知 track: {exp.track}")
 
@@ -312,6 +332,12 @@ def _config_summary(cfg: dict) -> dict:
 
 
 def run_experiment(exp: Experiment) -> Path:
+    if exp.track == FIXTURES_TRACK and exp.exp_id and (exp.case_filter or exp.bucket_filter):
+        # 本轨的产物是整体覆盖写；复用 exp_id 做过滤跑会把其余 case 从结果里抹掉
+        raise ValueError(
+            f"{FIXTURES_TRACK} 轨不支持 exp_id 复用 + case/bucket 过滤同时使用——过滤跑请开新实验目录"
+        )
+
     if exp.exp_id:  # 复用模式：judge-only / 补阶段，写回同一实验目录
         exp_id = exp.exp_id
         exp_dir = EXPERIMENTS_ROOT / exp_id
@@ -324,7 +350,9 @@ def run_experiment(exp: Experiment) -> Path:
 
     case_ids = _resolve_case_ids(exp)
     scope_desc = f"{len(case_ids)} cases" if case_ids is not None else "全集"
-    print(f">>> stages={list(exp.stages)} | 范围={scope_desc}")
+    # 本轨没有 run/l1/l2 之分，别让 manifest 记一份用不上的 stages
+    stages = [FIXTURES_TRACK] if exp.track == FIXTURES_TRACK else list(exp.stages)
+    print(f">>> stages={stages} | 范围={scope_desc}")
 
     for v in exp.variants:
         print(f">>> 跑变体 [{v.name}] ...")
@@ -341,7 +369,7 @@ def run_experiment(exp: Experiment) -> Path:
         # 每次调用（含复用模式补阶段）追加一条，全历史可追溯
         "stage_runs": old.get("stage_runs", []) + [{
             "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "stages": list(exp.stages),
+            "stages": stages,
             "case_filter": exp.case_filter,
             "bucket_filter": exp.bucket_filter,
             "resolved_case_count": len(case_ids) if case_ids is not None else "all",
@@ -373,21 +401,28 @@ def _cli() -> Experiment:
     """命令行入口（单变体 A_baseline；多变体 A/B 仍走下方编码式）。示例：
     uv run python -m src.experiment.runner --name phase3_l2 --buckets role_flip,personalization --n 3
     uv run python -m src.experiment.runner --name rejudge --exp-id <已有exp_id> --stages l2 --cases case_073,case_075
+    uv run python -m src.experiment.runner --name fx_smoke --track l2_fixtures_judge --cases case_072 --n 2
     """
     import argparse
     p = argparse.ArgumentParser(description="实验 harness：选择性执行 run/l1/l2，case_id/bucket 过滤")
     p.add_argument("--name", required=True, help="实验名（进 exp_id）")
-    p.add_argument("--stages", default="run,l1,l2", help="逗号分隔：run,l1,l2 的任意组合")
+    p.add_argument("--track", default="agent", choices=["agent", FIXTURES_TRACK],
+                   help=f"agent=评 agent；{FIXTURES_TRACK}=评 judge 本身"
+                        "（retrieval 轨 chunker 是 callable，走编码式）")
+    p.add_argument("--stages", default="run,l1,l2",
+                   help=f"逗号分隔：run,l1,l2 的任意组合（{FIXTURES_TRACK} 轨忽略）")
     p.add_argument("--cases", default=None, help="逗号分隔 case_id，如 case_073,case_075")
     p.add_argument("--buckets", default=None, help="逗号分隔桶名，如 role_flip,personalization；与 --cases 取并集")
     p.add_argument("--exp-id", default=None, help="复用已有实验目录（judge-only 从其 trace 取答案）")
-    p.add_argument("--n", type=int, default=1, help="每 case 跑几次（仅 run 阶段用；judge-only 时 n 跟 trace 走）")
+    p.add_argument("--n", type=int, default=None,
+                   help=f"每 case 跑几次（agent 轨默认 1，仅 run 阶段用；{FIXTURES_TRACK} 轨默认 {L2_FIXTURES_N}）")
     a = p.parse_args()
+    fixtures_track = a.track == FIXTURES_TRACK
     return Experiment(
         name=a.name,
-        track="agent",
+        track=a.track,
         variants=[Variant("A_baseline", {})],
-        n=a.n,
+        n=a.n if a.n is not None else (L2_FIXTURES_N if fixtures_track else 1),
         case_filter=a.cases.split(",") if a.cases else None,
         bucket_filter=a.buckets.split(",") if a.buckets else None,
         stages=tuple(a.stages.split(",")),

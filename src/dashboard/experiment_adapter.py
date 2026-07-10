@@ -123,21 +123,23 @@ def _context(
     exp_id: str,
     variant: str,
     source_paths: list[Path],
+    dataset_key: str = "eval_cases",
+    dataset_rel: str = "data/eval_cases.json",
+    drift_hint: str = "case 文案和 golden 回填可能与历史运行时不同。",
 ) -> dict[str, Any]:
     manifest_sha = (
         manifest.get("provenance", {})
         .get("dataset_sha", {})
-        .get("eval_cases")
+        .get(dataset_key)
     )
-    current_sha = _sha256(root / "data" / "eval_cases.json")
+    current_sha = _sha256(root / dataset_rel)
     warnings: list[str] = []
     dataset_sha_match: bool | None = None
     if manifest_sha and current_sha:
         dataset_sha_match = manifest_sha == current_sha
         if not dataset_sha_match:
             warnings.append(
-                "当前 data/eval_cases.json 与该实验记录的 dataset_sha 不一致，"
-                "case 文案和 golden 回填可能与历史运行时不同。"
+                f"当前 {dataset_rel} 与该实验记录的 dataset_sha 不一致，{drift_hint}"
             )
 
     modified_values = [value for value in (_modified_at(path) for path in source_paths) if value]
@@ -868,4 +870,171 @@ def build_l2_experiment_dashboard_data(
         },
         "cases": rows,
         "issue_cases": [row for row in rows if row["has_issue"]],
+    }
+
+
+FIXTURES_TRACK = "l2_fixtures_judge"
+FIXTURES_DATASET_REL = "data/l2_judge_fixtures.json"
+
+
+def _empty_fixtures_stats() -> dict[str, float]:
+    return {
+        "case_count": 0,
+        "issue_case_count": 0,
+        "anchor_count": 0,
+        "passed_anchor_count": 0,
+        "red_anchor_count": 0,
+        "green_anchor_count": 0,
+        "red_unsupported_runs": 0,
+        "red_runs": 0,
+        "green_unsupported_runs": 0,
+        "green_runs": 0,
+        "not_extracted_runs": 0,
+        "anchor_runs": 0,
+    }
+
+
+def _finalize_fixtures_stats(stats: dict[str, float]) -> dict[str, Any]:
+    return {
+        **{key: _clean_number(value) for key, value in stats.items()},
+        "anchor_pass_rate": _nullable_rate(stats["passed_anchor_count"], stats["anchor_count"]),
+        # 红锚判 unsupported = 抓到越界；绿锚判 unsupported = 误伤。同一个分子，两种含义。
+        "red_anchor_recall": _nullable_rate(stats["red_unsupported_runs"], stats["red_runs"]),
+        "green_anchor_fp_rate": _nullable_rate(stats["green_unsupported_runs"], stats["green_runs"]),
+        "extract_rate": (1 - stats["not_extracted_runs"] / stats["anchor_runs"])
+                        if stats["anchor_runs"] else None,
+    }
+
+
+def _accumulate_fixtures(stats: dict[str, float], case: dict[str, Any], anchors: list[dict[str, Any]]) -> None:
+    stats["case_count"] += 1
+    stats["issue_case_count"] += int(bool(case.get("has_issue")))
+    for anchor in anchors:
+        n = int(anchor.get("n") or 0)
+        unsupported = int(anchor.get("unsupported_runs") or 0)
+        stats["anchor_count"] += 1
+        stats["passed_anchor_count"] += int(anchor.get("flag") == "pass")
+        stats["anchor_runs"] += n
+        stats["not_extracted_runs"] += int(anchor.get("not_extracted_runs") or 0)
+        if anchor.get("expect") == "unsupported":
+            stats["red_anchor_count"] += 1
+            stats["red_runs"] += n
+            stats["red_unsupported_runs"] += unsupported
+        else:
+            stats["green_anchor_count"] += 1
+            stats["green_runs"] += n
+            stats["green_unsupported_runs"] += unsupported
+
+
+def _expect_row(expect: str, anchors: list[dict[str, Any]]) -> dict[str, Any]:
+    runs = sum(int(a.get("n") or 0) for a in anchors)
+    unsupported = sum(int(a.get("unsupported_runs") or 0) for a in anchors)
+    not_extracted = sum(int(a.get("not_extracted_runs") or 0) for a in anchors)
+    passed = sum(1 for a in anchors if a.get("flag") == "pass")
+    return {
+        "expect": expect,
+        "anchor_count": len(anchors),
+        "passed_anchor_count": passed,
+        "anchor_pass_rate": _nullable_rate(passed, len(anchors)),
+        "anchor_runs": runs,
+        "unsupported_runs": unsupported,
+        # 红锚读作 recall，绿锚读作假阳率——前端按 expect 决定文案
+        "unsupported_run_rate": _nullable_rate(unsupported, runs),
+        "not_extracted_runs": not_extracted,
+        "extract_rate": (1 - not_extracted / runs) if runs else None,
+    }
+
+
+def build_l2_fixtures_experiment_dashboard_data(
+    *,
+    root: Path | None = None,
+    exp_id: str,
+    variant: str,
+) -> dict[str, Any]:
+    """judge 夹具轨看板：被测对象是 L2 judge 本身，行是 case、列是锚点、最深一层是每次 run 的裁定。"""
+    root = root or ROOT
+    _, manifest_path, variant_dir = _experiment_paths(root, exp_id, variant)
+    manifest = _load_json(manifest_path, {})
+    if manifest.get("track") != FIXTURES_TRACK:
+        raise ValueError(f"只有 {FIXTURES_TRACK} track 实验支持 judge 夹具 Dashboard")
+
+    result_path = variant_dir / "eval" / "l2_fixtures_case_result.json"
+    metrics_path = variant_dir / "eval" / "l2_fixtures_metrics.json"
+    raw_results = _load_json(result_path, {})
+    if not isinstance(raw_results, dict):
+        raw_results = {}
+
+    rows: list[dict[str, Any]] = []
+    failed_anchors: list[dict[str, Any]] = []
+    all_anchors: list[dict[str, Any]] = []
+    totals = _empty_fixtures_stats()
+    bucket_stats: dict[str, dict[str, float]] = defaultdict(_empty_fixtures_stats)
+
+    for case_id in sorted(raw_results):
+        case = raw_results[case_id]
+        if not isinstance(case, dict):
+            continue
+        anchors = [a for a in case.get("anchors", []) if isinstance(a, dict)]
+        if not anchors:
+            continue
+        bucket = str(case.get("bucket") or "unknown")
+
+        row = {
+            **case,
+            "case_id": case_id,
+            "bucket": bucket,
+            "anchors": anchors,
+            # 与 L1/L2 轨对齐：落盘叫 runs，出口叫 experiment_runs
+            "experiment_runs": case.get("runs", []),
+        }
+        row.pop("runs", None)
+        rows.append(row)
+
+        all_anchors.extend(anchors)
+        failed_anchors.extend(
+            {**anchor, "bucket": bucket, "question": case.get("question", "")}
+            for anchor in anchors
+            if anchor.get("flag") != "pass"
+        )
+        for stats in (totals, bucket_stats[bucket]):
+            _accumulate_fixtures(stats, case, anchors)
+
+    rows.sort(key=lambda row: (not row.get("has_issue"), row["case_id"]))
+
+    metrics = _finalize_fixtures_stats(totals)
+    metrics["n"] = max((int(row.get("n") or 0) for row in rows), default=0)
+    metrics["failed_anchor_count"] = len(failed_anchors)
+
+    return {
+        "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "source": {
+            "path": str(result_path),
+            "exists": result_path.exists(),
+            "modified_at": _modified_at(result_path),
+        },
+        "context": _context(
+            root=root,
+            manifest=manifest,
+            exp_id=exp_id,
+            variant=variant,
+            source_paths=[result_path, metrics_path],
+            dataset_key="l2_judge_fixtures",
+            dataset_rel=FIXTURES_DATASET_REL,
+            drift_hint="夹具答案或锚点可能已改，本次结果与历史不可直接比较。",
+        ),
+        "metrics": metrics,
+        "persisted_metrics": _load_json(metrics_path, {}),
+        "breakdowns": {
+            "by_bucket": [
+                {"bucket": bucket, **_finalize_fixtures_stats(stats)}
+                for bucket, stats in sorted(bucket_stats.items())
+            ],
+            "by_expect": [
+                _expect_row(expect, [a for a in all_anchors if a.get("expect") == expect])
+                for expect in ("unsupported", "supported")
+            ],
+        },
+        "cases": rows,
+        "issue_cases": [row for row in rows if row.get("has_issue")],
+        "failed_anchors": failed_anchors,
     }

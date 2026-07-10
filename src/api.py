@@ -8,6 +8,7 @@ import uvicorn
 
 from src.agent import ChatSession
 from src.dashboard.main import build_dashboard_data
+from src.dashboard.experiment_adapter import build_l2_fixtures_experiment_dashboard_data
 from src.experiment.runner import list_experiments
 from src.experiment.compare import compare_with_detail
 from src.eval.l2.annotations import save_l2_annotation
@@ -71,6 +72,17 @@ def l2_eval_dashboard_endpoint(
 ) -> dict:
     try:
         return build_l2_dashboard_data(exp_id=exp_id, variant=variant)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/l2-fixtures-dashboard")
+def l2_fixtures_dashboard_endpoint(exp_id: str, variant: str) -> dict:
+    # 本轨没有 legacy 源：夹具结果只存在于某次实验里，exp_id/variant 必填
+    try:
+        return build_l2_fixtures_experiment_dashboard_data(exp_id=exp_id, variant=variant)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
