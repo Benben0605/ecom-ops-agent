@@ -27,6 +27,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from pydantic import BaseModel
+
 from src import config
 from src.agent import (
     ChatSession,
@@ -250,6 +252,11 @@ def _write(path: Path, obj) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_model(path: Path, model: BaseModel) -> None:
+    """契约化产物走 model 落盘（见 CONTRIBUTING「跨边界数据契约」）。"""
+    path.write_text(model.model_dump_json(indent=2) + "\n", encoding="utf-8")
+
+
 def _existing_run_dirs(trace_dir: Path) -> list[Path]:
     """按 run_<i> 数字序返回已有 trace 子目录（judge-only 时判分范围跟着 trace 走，n 由 trace 决定）。"""
     dirs = [d for d in trace_dir.glob("run_*") if (d / "run_map.json").exists()]
@@ -309,8 +316,8 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
 
     elif exp.track == FIXTURES_TRACK:
         fx_case, fx_metrics = run_fixtures(n=exp.n, case_filter=case_ids)
-        _write(eval_dir / "l2_fixtures_case_result.json", fx_case)
-        _write(eval_dir / "l2_fixtures_metrics.json", fx_metrics)
+        _write_model(eval_dir / "l2_fixtures_case_result.json", fx_case)
+        _write_model(eval_dir / "l2_fixtures_metrics.json", fx_metrics)
 
     else:
         raise ValueError(f"未知 track: {exp.track}")
@@ -509,11 +516,20 @@ if __name__ == "__main__":
 
     # ⑧ 增加 role-flip, personalization， 完整FACTUAL BUCKET 跑 l1/l2 judge
     # 新能力示例：bucket 过滤 + 全阶段（等价 CLI：--name phase3_two_buckets --buckets role_flip,personalization --n 3）
+    # run_experiment(Experiment(
+    #     name="phase3_factual_buckets_l1_l2",
+    #     track="agent",
+    #     variants=variants,
+    #     n=3,
+    #     bucket_filter=["direct", "rephrased", "multi_intent", "confusing", "complex_task",
+    #                "role_flip", "personalization"],
+    # ))
+
+    # ⑨ fixtures-judge 首跑，观察 judge-Dashboard 效果
     run_experiment(Experiment(
-        name="phase3_factual_buckets_l1_l2",
-        track="agent",
+        name="fixtures_judge_first_run",
+        track=FIXTURES_TRACK,
         variants=variants,
         n=3,
-        bucket_filter=["direct", "rephrased", "multi_intent", "confusing", "complex_task",
-                   "role_flip", "personalization"],
+        case_filter=["case_072", "case_078", "case_079"],
     ))

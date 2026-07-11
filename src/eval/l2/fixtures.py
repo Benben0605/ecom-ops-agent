@@ -5,12 +5,22 @@
 judge prompt 每改一版都跑这个，别再靠单 run + 肉眼。
 
 入口只有 src.experiment.runner（track=l2_fixtures_judge）；本模块只算不落盘。
+产物 schema 见 src/contracts/l2_fixtures.py，计数/通过率一律由 model computed，本模块不自己算。
 """
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from src.contracts.l2_fixtures import (
+    AnchorRecord,
+    AnchorRun,
+    CaseRecord,
+    FixtureInput,
+    FixturesCaseResult,
+    FixturesMetrics,
+    JudgeVerdict,
+)
 from src.eval.l2.judge import judge_one
 
 ROOT = Path(__file__).parents[3]
@@ -33,125 +43,62 @@ def fixture_case_index() -> list[tuple[str, str]]:
     return [(fx["case_id"], buckets.get(fx["case_id"], "unknown")) for fx in _load_fixtures()]
 
 
-def _run_verdict(matched: list[dict]) -> str:
-    """一次 run 里该锚点的裁定。三态：judge 没抽出匹配的断言 ≠ 判它 supported。"""
-    if not matched:
-        return "not_extracted"
-    if any(a["verdict"] == "unsupported" for a in matched):
-        return "unsupported"
-    return "supported"
-
-
-def _anchor_record(case_id: str, index: int, anchor: dict, verdicts: list[dict], n: int) -> dict:
+def _anchor_record(case_id: str, index: int, anchor: dict,
+                   verdicts: list[JudgeVerdict]) -> AnchorRecord:
     if anchor["axis"] != "faithfulness":
         raise ValueError(
             f"[{case_id}] 锚点 axis={anchor['axis']!r} 不支持——本模块只匹配 faithfulness_axis。"
             f"加 hit 轴锚点前先实现对应匹配逻辑，别让它静默失配。"
         )
     pat = re.compile(anchor["match"])
-    red = anchor["expect"] == "unsupported"
-
-    runs = []
-    for i, v in enumerate(verdicts, start=1):
-        matched = [a for a in v.get("faithfulness_axis", []) if pat.search(a["assertion"])]
-        rv = _run_verdict(matched)
-        ok = (rv == "unsupported") if red else (rv != "unsupported")
-        runs.append({"run_index": i, "run_verdict": rv, "ok": ok, "matched": matched})
-
-    counts = {"unsupported_runs": 0, "supported_runs": 0, "not_extracted_runs": 0}
-    for r in runs:
-        counts[f"{r['run_verdict']}_runs"] += 1
-
-    if red:
-        flag = "pass" if counts["unsupported_runs"] == n else "false_negative"
-    else:
-        flag = "pass" if counts["unsupported_runs"] == 0 else "false_positive"
-
-    return {
-        "anchor_id": f"{case_id}::{index}",
-        "case_id": case_id,
-        "axis": anchor["axis"],
-        "match": anchor["match"],
-        "expect": anchor["expect"],
-        "note": anchor["note"],
-        "flag": flag,
-        "n": n,
-        **counts,
-        "pass_rate": sum(1 for r in runs if r["ok"]) / n,
-        "runs": runs,
-    }
+    expect = anchor["expect"]
+    return AnchorRecord(
+        anchor_id=f"{case_id}::{index}",
+        case_id=case_id,
+        axis=anchor["axis"],
+        match=anchor["match"],
+        expect=expect,
+        note=anchor["note"],
+        runs=[
+            AnchorRun.build(
+                run_index=v.run_index,
+                matched=[a for a in v.faithfulness_axis if pat.search(a.assertion)],
+                expect=expect,
+            )
+            for v in verdicts
+        ],
+    )
 
 
-def _print_anchor(a: dict) -> None:
-    n, u, ne = a["n"], a["unsupported_runs"], a["not_extracted_runs"]
-    if a["expect"] == "unsupported":
-        mark = "✅" if a["flag"] == "pass" else "❌假阴"
+def _print_anchor(a: AnchorRecord) -> None:
+    n, u, ne = a.n, a.unsupported_runs, a.not_extracted_runs
+    if a.is_red:
+        mark = "✅" if a.flag == "pass" else "❌假阴"
         detail = f"该红] recall {u}/{n}（漏抽 {ne}）"
     else:
-        mark = "✅" if a["flag"] == "pass" else "❌假阳"
+        mark = "✅" if a.flag == "pass" else "❌假阳"
         detail = f"该绿] 假阳 {u}/{n}（被抽到 {n - ne}/{n}）"
-    print(f"  {mark} [{a['match']} → {detail}  {a['note']}")
+    print(f"  {mark} [{a.match} → {detail}  {a.note}")
 
 
-def _case_record(fx: dict, bucket: str, verdicts: list[dict], n: int) -> dict:
-    anchors = [_anchor_record(fx["case_id"], i, a, verdicts, n)
-               for i, a in enumerate(fx["anchors"])]
+def _case_record(fx: dict, bucket: str, verdicts: list[JudgeVerdict]) -> CaseRecord:
+    anchors = [_anchor_record(fx["case_id"], i, a, verdicts) for i, a in enumerate(fx["anchors"])]
     for a in anchors:
         _print_anchor(a)
-
-    # run 级通过：该 run 里每条锚点都符合预期（与 l1/l2 轨的 pass_rate 同义，可横向比）
-    passing_runs = sum(1 for i in range(n) if all(a["runs"][i]["ok"] for a in anchors))
-    passed = [a for a in anchors if a["flag"] == "pass"]
-
-    return {
-        "case_id": fx["case_id"],
-        "bucket": bucket,
-        "question": fx["question"],
-        "answer": fx["answer"],
-        "tool_outputs": fx["tool_outputs"],
-        "golden_points": fx["golden_points"],
-        "n": n,
-        "pass_rate": passing_runs / n,
-        "anchor_count": len(anchors),
-        "passed_anchor_count": len(passed),
-        "anchor_pass_rate": len(passed) / len(anchors) if anchors else None,
-        "has_issue": len(passed) < len(anchors),
-        "issue_types": sorted({a["flag"] for a in anchors if a["flag"] != "pass"}),
-        "anchors": anchors,
-        "runs": [{"run_index": i, **v} for i, v in enumerate(verdicts, start=1)],
-    }
-
-
-def _metrics(case_result: dict, n: int) -> dict:
-    anchors = [a for case in case_result.values() for a in case["anchors"]]
-    red = [a for a in anchors if a["expect"] == "unsupported"]
-    green = [a for a in anchors if a["expect"] == "supported"]
-    failed = [a for a in anchors if a["flag"] != "pass"]
-    anchor_runs = len(anchors) * n
-
-    return {
-        "n": n,
-        "case_count": len(case_result),
-        "anchor_count": len(anchors),
-        "anchor_pass_rate": (len(anchors) - len(failed)) / len(anchors) if anchors else None,
-        "red_anchor_count": len(red),
-        "green_anchor_count": len(green),
-        "red_anchor_recall": sum(a["unsupported_runs"] for a in red) / (len(red) * n) if red else None,
-        "green_anchor_fp_rate": sum(a["unsupported_runs"] for a in green) / (len(green) * n) if green else None,
-        # 抽取覆盖度：绿锚从未被抽到也记 pass，靠这个把低置信度的假绿暴露出来
-        "extract_rate": (1 - sum(a["not_extracted_runs"] for a in anchors) / anchor_runs)
-                        if anchor_runs else None,
-        "failed_anchor_count": len(failed),
-        "failed_anchors": [{k: a[k] for k in ("case_id", "anchor_id", "match", "expect", "flag")}
-                           for a in failed],
-    }
+    return CaseRecord(
+        case_id=fx["case_id"],
+        bucket=bucket,
+        input=FixtureInput(**{k: fx[k] for k in JUDGE_INPUT_KEYS}),
+        anchors=anchors,
+        judge_verdicts=verdicts,
+    )
 
 
 def run_fixtures(
     n: int = N,
     case_filter: list[str] | None = None,
     max_workers: int = MAX_WORKERS,
-) -> tuple[dict, dict]:
+) -> tuple[FixturesCaseResult, FixturesMetrics]:
     """返回 (case_result, metrics)：下钻详情 + headline。落盘由调用方（experiment runner）负责。"""
     fixtures = _load_fixtures()
     if case_filter is not None:
@@ -165,13 +112,14 @@ def run_fixtures(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         flat = list(pool.map(judge_one, jobs))
 
-    case_result = {}
+    cases = {}
     for i, fx in enumerate(fixtures):
         print(f"\n[{fx['case_id']}]")
-        case_result[fx["case_id"]] = _case_record(
-            fx, buckets.get(fx["case_id"], "unknown"), flat[i * n:(i + 1) * n], n)
+        verdicts = [JudgeVerdict(run_index=j, **raw)
+                    for j, raw in enumerate(flat[i * n:(i + 1) * n], start=1)]
+        cases[fx["case_id"]] = _case_record(fx, buckets.get(fx["case_id"], "unknown"), verdicts)
 
-    return case_result, _metrics(case_result, n)
+    return FixturesCaseResult(cases=cases), FixturesMetrics.from_cases(cases.values())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.contracts import load_artifact
+from src.contracts.l2_fixtures import (
+    AnchorRecord,
+    CaseRecord,
+    FixturesCaseResult,
+    FixturesMetrics,
+)
 from src.eval.l2.annotations import (
     ROOT_CAUSE_OPTIONS,
     annotation_path,
@@ -877,60 +884,11 @@ FIXTURES_TRACK = "l2_fixtures_judge"
 FIXTURES_DATASET_REL = "data/l2_judge_fixtures.json"
 
 
-def _empty_fixtures_stats() -> dict[str, float]:
-    return {
-        "case_count": 0,
-        "issue_case_count": 0,
-        "anchor_count": 0,
-        "passed_anchor_count": 0,
-        "red_anchor_count": 0,
-        "green_anchor_count": 0,
-        "red_unsupported_runs": 0,
-        "red_runs": 0,
-        "green_unsupported_runs": 0,
-        "green_runs": 0,
-        "not_extracted_runs": 0,
-        "anchor_runs": 0,
-    }
-
-
-def _finalize_fixtures_stats(stats: dict[str, float]) -> dict[str, Any]:
-    return {
-        **{key: _clean_number(value) for key, value in stats.items()},
-        "anchor_pass_rate": _nullable_rate(stats["passed_anchor_count"], stats["anchor_count"]),
-        # 红锚判 unsupported = 抓到越界；绿锚判 unsupported = 误伤。同一个分子，两种含义。
-        "red_anchor_recall": _nullable_rate(stats["red_unsupported_runs"], stats["red_runs"]),
-        "green_anchor_fp_rate": _nullable_rate(stats["green_unsupported_runs"], stats["green_runs"]),
-        "extract_rate": (1 - stats["not_extracted_runs"] / stats["anchor_runs"])
-                        if stats["anchor_runs"] else None,
-    }
-
-
-def _accumulate_fixtures(stats: dict[str, float], case: dict[str, Any], anchors: list[dict[str, Any]]) -> None:
-    stats["case_count"] += 1
-    stats["issue_case_count"] += int(bool(case.get("has_issue")))
-    for anchor in anchors:
-        n = int(anchor.get("n") or 0)
-        unsupported = int(anchor.get("unsupported_runs") or 0)
-        stats["anchor_count"] += 1
-        stats["passed_anchor_count"] += int(anchor.get("flag") == "pass")
-        stats["anchor_runs"] += n
-        stats["not_extracted_runs"] += int(anchor.get("not_extracted_runs") or 0)
-        if anchor.get("expect") == "unsupported":
-            stats["red_anchor_count"] += 1
-            stats["red_runs"] += n
-            stats["red_unsupported_runs"] += unsupported
-        else:
-            stats["green_anchor_count"] += 1
-            stats["green_runs"] += n
-            stats["green_unsupported_runs"] += unsupported
-
-
-def _expect_row(expect: str, anchors: list[dict[str, Any]]) -> dict[str, Any]:
-    runs = sum(int(a.get("n") or 0) for a in anchors)
-    unsupported = sum(int(a.get("unsupported_runs") or 0) for a in anchors)
-    not_extracted = sum(int(a.get("not_extracted_runs") or 0) for a in anchors)
-    passed = sum(1 for a in anchors if a.get("flag") == "pass")
+def _expect_row(expect: str, anchors: list[AnchorRecord]) -> dict[str, Any]:
+    runs = sum(a.n for a in anchors)
+    unsupported = sum(a.unsupported_runs for a in anchors)
+    not_extracted = sum(a.not_extracted_runs for a in anchors)
+    passed = sum(1 for a in anchors if a.flag == "pass")
     return {
         "expect": expect,
         "anchor_count": len(anchors),
@@ -945,13 +903,24 @@ def _expect_row(expect: str, anchors: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _fixture_case_row(case: CaseRecord) -> dict[str, Any]:
+    # 与 L1/L2 轨对齐：落盘叫 judge_verdicts，出口叫 experiment_runs
+    row = case.model_dump()
+    row["experiment_runs"] = row.pop("judge_verdicts")
+    return row
+
+
 def build_l2_fixtures_experiment_dashboard_data(
     *,
     root: Path | None = None,
     exp_id: str,
     variant: str,
 ) -> dict[str, Any]:
-    """judge 夹具轨看板：被测对象是 L2 judge 本身，行是 case、列是锚点、最深一层是每次 run 的裁定。"""
+    """judge 夹具轨看板：被测对象是 L2 judge 本身，行是 case、列是锚点、最深一层是每次 run 的裁定。
+
+    指标不在这里重算——落盘的 l2_fixtures_metrics.json 就是权威，分桶拆解调同一个
+    FixturesMetrics.from_cases()。契约见 src/contracts/l2_fixtures.py。
+    """
     root = root or ROOT
     _, manifest_path, variant_dir = _experiment_paths(root, exp_id, variant)
     manifest = _load_json(manifest_path, {})
@@ -960,50 +929,16 @@ def build_l2_fixtures_experiment_dashboard_data(
 
     result_path = variant_dir / "eval" / "l2_fixtures_case_result.json"
     metrics_path = variant_dir / "eval" / "l2_fixtures_metrics.json"
-    raw_results = _load_json(result_path, {})
-    if not isinstance(raw_results, dict):
-        raw_results = {}
+    case_result = (load_artifact(result_path, FixturesCaseResult) if result_path.exists()
+                   else FixturesCaseResult(cases={}))
+    metrics = (load_artifact(metrics_path, FixturesMetrics) if metrics_path.exists()
+               else FixturesMetrics.from_cases(case_result.cases.values()))
 
-    rows: list[dict[str, Any]] = []
-    failed_anchors: list[dict[str, Any]] = []
-    all_anchors: list[dict[str, Any]] = []
-    totals = _empty_fixtures_stats()
-    bucket_stats: dict[str, dict[str, float]] = defaultdict(_empty_fixtures_stats)
-
-    for case_id in sorted(raw_results):
-        case = raw_results[case_id]
-        if not isinstance(case, dict):
-            continue
-        anchors = [a for a in case.get("anchors", []) if isinstance(a, dict)]
-        if not anchors:
-            continue
-        bucket = str(case.get("bucket") or "unknown")
-
-        row = {
-            **case,
-            "case_id": case_id,
-            "bucket": bucket,
-            "anchors": anchors,
-            # 与 L1/L2 轨对齐：落盘叫 runs，出口叫 experiment_runs
-            "experiment_runs": case.get("runs", []),
-        }
-        row.pop("runs", None)
-        rows.append(row)
-
-        all_anchors.extend(anchors)
-        failed_anchors.extend(
-            {**anchor, "bucket": bucket, "question": case.get("question", "")}
-            for anchor in anchors
-            if anchor.get("flag") != "pass"
-        )
-        for stats in (totals, bucket_stats[bucket]):
-            _accumulate_fixtures(stats, case, anchors)
-
-    rows.sort(key=lambda row: (not row.get("has_issue"), row["case_id"]))
-
-    metrics = _finalize_fixtures_stats(totals)
-    metrics["n"] = max((int(row.get("n") or 0) for row in rows), default=0)
-    metrics["failed_anchor_count"] = len(failed_anchors)
+    cases = sorted(case_result.cases.values(), key=lambda c: (not c.has_issue, c.case_id))
+    by_bucket: dict[str, list[CaseRecord]] = defaultdict(list)
+    for case in cases:
+        by_bucket[case.bucket].append(case)
+    all_anchors = [a for case in cases for a in case.anchors]
 
     return {
         "generated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -1022,19 +957,21 @@ def build_l2_fixtures_experiment_dashboard_data(
             dataset_rel=FIXTURES_DATASET_REL,
             drift_hint="夹具答案或锚点可能已改，本次结果与历史不可直接比较。",
         ),
-        "metrics": metrics,
-        "persisted_metrics": _load_json(metrics_path, {}),
+        "metrics": metrics.model_dump(),
         "breakdowns": {
             "by_bucket": [
-                {"bucket": bucket, **_finalize_fixtures_stats(stats)}
-                for bucket, stats in sorted(bucket_stats.items())
+                {"bucket": bucket, **FixturesMetrics.from_cases(bucket_cases).model_dump()}
+                for bucket, bucket_cases in sorted(by_bucket.items())
             ],
             "by_expect": [
-                _expect_row(expect, [a for a in all_anchors if a.get("expect") == expect])
+                _expect_row(expect, [a for a in all_anchors if a.expect == expect])
                 for expect in ("unsupported", "supported")
             ],
         },
-        "cases": rows,
-        "issue_cases": [row for row in rows if row.get("has_issue")],
-        "failed_anchors": failed_anchors,
+        "cases": [_fixture_case_row(case) for case in cases],
+        "issue_cases": [_fixture_case_row(case) for case in cases if case.has_issue],
+        "failed_anchors": [
+            {**anchor.model_dump(), "bucket": case.bucket, "question": case.input.question}
+            for case in cases for anchor in case.anchors if anchor.flag != "pass"
+        ],
     }

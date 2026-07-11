@@ -508,6 +508,7 @@ dependencies = [
     { name = "chromadb" },
     { name = "fastapi" },
     { name = "openai" },
+    { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "uvicorn" },
 ]
@@ -517,6 +518,7 @@ requires-dist = [
     { name = "chromadb", specifier = ">=1.5.9" },
     { name = "fastapi", specifier = ">=0.136.3" },
     { name = "openai" },
+    { name = "pydantic", specifier = ">=2" },
     { name = "python-dotenv" },
     { name = "uvicorn", specifier = ">=0.49" },
 ]

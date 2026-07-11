@@ -85,58 +85,77 @@ class RunFixturesTest(unittest.TestCase):
 
     def test_anchor_three_state_counts(self):
         case_result, _ = self._run([_FIXTURE])
-        anchors = {a["match"]: a for a in case_result["case_x"]["anchors"]}
+        anchors = {a.match: a for a in case_result.cases["case_x"].anchors}
 
         for anchor in anchors.values():
-            total = (anchor["unsupported_runs"] + anchor["supported_runs"]
-                     + anchor["not_extracted_runs"])
-            self.assertEqual(total, anchor["n"], f"{anchor['match']} 三态之和应等于 n")
+            total = anchor.unsupported_runs + anchor.supported_runs + anchor.not_extracted_runs
+            self.assertEqual(total, anchor.n, f"{anchor.match} 三态之和应等于 n")
 
-        self.assertEqual(anchors["越界A"]["flag"], "pass")
-        self.assertEqual(anchors["越界A"]["unsupported_runs"], 3)
+        self.assertEqual(anchors["越界A"].flag, "pass")
+        self.assertEqual(anchors["越界A"].unsupported_runs, 3)
 
-        self.assertEqual(anchors["越界B"]["flag"], "false_negative")
-        self.assertEqual(anchors["越界B"]["unsupported_runs"], 1)
-        self.assertEqual(anchors["越界B"]["not_extracted_runs"], 2)
+        self.assertEqual(anchors["越界B"].flag, "false_negative")
+        self.assertEqual(anchors["越界B"].unsupported_runs, 1)
+        self.assertEqual(anchors["越界B"].not_extracted_runs, 2)
 
-        self.assertEqual(anchors["绿C"]["flag"], "false_positive")
-        self.assertEqual(anchors["绿C"]["unsupported_runs"], 1)
-        self.assertEqual(anchors["绿C"]["supported_runs"], 2)
+        self.assertEqual(anchors["绿C"].flag, "false_positive")
+        self.assertEqual(anchors["绿C"].unsupported_runs, 1)
+        self.assertEqual(anchors["绿C"].supported_runs, 2)
 
         # 从未被抽到的绿锚仍记 pass，但 extract 信号把它和"真的判 supported"区分开
-        self.assertEqual(anchors["绿D"]["flag"], "pass")
-        self.assertEqual(anchors["绿D"]["not_extracted_runs"], 3)
-        self.assertEqual(anchors["绿D"]["supported_runs"], 0)
+        self.assertEqual(anchors["绿D"].flag, "pass")
+        self.assertEqual(anchors["绿D"].not_extracted_runs, 3)
+        self.assertEqual(anchors["绿D"].supported_runs, 0)
 
     def test_case_and_metrics_rollup(self):
         case_result, metrics = self._run([_FIXTURE])
-        case = case_result["case_x"]
+        case = case_result.cases["case_x"]
 
-        self.assertEqual(case["bucket"], "direct")       # 从 eval_cases join
-        self.assertEqual(case["anchor_count"], 4)
-        self.assertEqual(case["passed_anchor_count"], 2)
-        self.assertEqual(case["anchor_pass_rate"], 0.5)
-        self.assertEqual(case["pass_rate"], 0.0)         # 没有一次 run 让四条锚点全部就位
-        self.assertTrue(case["has_issue"])
-        self.assertEqual(case["issue_types"], ["false_negative", "false_positive"])
-        self.assertEqual([r["run_index"] for r in case["runs"]], [1, 2, 3])
-        self.assertEqual(case["anchors"][0]["anchor_id"], "case_x::0")
+        self.assertEqual(case.bucket, "direct")          # 从 eval_cases join
+        self.assertEqual(case.anchor_count, 4)
+        self.assertEqual(case.passed_anchor_count, 2)
+        self.assertEqual(case.anchor_pass_rate, 0.5)
+        self.assertEqual(case.run_pass_rate, 0.0)        # 没有一次 run 让四条锚点全部就位
+        self.assertTrue(case.has_issue)
+        self.assertEqual(case.issue_types, ["false_negative", "false_positive"])
+        self.assertEqual([v.run_index for v in case.judge_verdicts], [1, 2, 3])
+        self.assertEqual(case.anchors[0].anchor_id, "case_x::0")
+        self.assertEqual(case.input.question, "q-x")     # 输入收进 input，与产出分开
 
-        self.assertEqual(metrics["anchor_count"], 4)
-        self.assertEqual(metrics["red_anchor_count"], 2)
-        self.assertEqual(metrics["green_anchor_count"], 2)
-        self.assertEqual(metrics["anchor_pass_rate"], 0.5)
-        self.assertAlmostEqual(metrics["red_anchor_recall"], 4 / 6)
-        self.assertAlmostEqual(metrics["green_anchor_fp_rate"], 1 / 6)
-        self.assertAlmostEqual(metrics["extract_rate"], 1 - 5 / 12)
-        self.assertEqual(metrics["failed_anchor_count"], 2)
-        self.assertEqual({a["match"] for a in metrics["failed_anchors"]}, {"越界B", "绿C"})
+        self.assertEqual(metrics.anchor_count, 4)
+        self.assertEqual(metrics.red_anchor_count, 2)
+        self.assertEqual(metrics.green_anchor_count, 2)
+        self.assertEqual(metrics.anchor_pass_rate, 0.5)
+        self.assertAlmostEqual(metrics.red_anchor_recall, 4 / 6)
+        self.assertAlmostEqual(metrics.green_anchor_fp_rate, 1 / 6)
+        self.assertAlmostEqual(metrics.extract_rate, 1 - 5 / 12)
+        self.assertEqual(metrics.failed_anchor_count, 2)
+        self.assertEqual({a.match for a in metrics.failed_anchors}, {"越界B", "绿C"})
+
+    def test_metrics_carry_the_denominators_of_every_rate(self):
+        """率必须能被产物里的计数复核，不必回代码读分母。"""
+        _, metrics = self._run([_FIXTURE])
+        self.assertEqual(metrics.red_anchor_recall,
+                         metrics.red_unsupported_runs / metrics.red_runs)
+        self.assertEqual(metrics.green_anchor_fp_rate,
+                         metrics.green_unsupported_runs / metrics.green_runs)
+        self.assertEqual(metrics.extract_rate,
+                         1 - metrics.not_extracted_runs / metrics.anchor_runs)
+        self.assertEqual(metrics.anchor_pass_rate,
+                         metrics.passed_anchor_count / metrics.anchor_count)
+
+    def test_artifact_round_trips_through_json(self):
+        """落盘再读回等价——computed 字段被忽略后由 runs 重新算出同一个值。"""
+        case_result, metrics = self._run([_FIXTURE])
+        for model in (case_result, metrics):
+            reloaded = type(model).model_validate(json.loads(model.model_dump_json()))
+            self.assertEqual(reloaded.model_dump(), model.model_dump())
 
     def test_case_filter_narrows_fixtures(self):
         other = {**_FIXTURE, "case_id": "case_y", "question": "q-y"}
         case_result, metrics = self._run([_FIXTURE, other], case_filter=["case_y"])
-        self.assertEqual(list(case_result), ["case_y"])
-        self.assertEqual(metrics["case_count"], 1)
+        self.assertEqual(list(case_result.cases), ["case_y"])
+        self.assertEqual(metrics.case_count, 1)
 
     def test_non_faithfulness_axis_raises(self):
         bad = {**_FIXTURE, "anchors": [_anchor("越界A", "unsupported", axis="hit")]}
@@ -209,8 +228,8 @@ class FixturesDashboardTest(unittest.TestCase):
             case_result, metrics = fx.run_fixtures(n=3, max_workers=1)
 
         eval_dir = self.exp_dir / "variants" / self.variant / "eval"
-        _write_json(eval_dir / "l2_fixtures_case_result.json", case_result)
-        _write_json(eval_dir / "l2_fixtures_metrics.json", metrics)
+        _write_json(eval_dir / "l2_fixtures_case_result.json", json.loads(case_result.model_dump_json()))
+        _write_json(eval_dir / "l2_fixtures_metrics.json", json.loads(metrics.model_dump_json()))
 
     def tearDown(self):
         self.temporary_directory.cleanup()
@@ -244,8 +263,6 @@ class FixturesDashboardTest(unittest.TestCase):
         self.assertEqual(metrics["failed_anchor_count"], 2)
         self.assertEqual(metrics["issue_case_count"], 1)
 
-        self.assertEqual(payload["persisted_metrics"]["anchor_count"], 4)
-
         by_bucket = payload["breakdowns"]["by_bucket"]
         self.assertEqual([b["bucket"] for b in by_bucket], ["direct"])
         self.assertEqual(by_bucket[0]["anchor_count"], 4)
@@ -260,9 +277,10 @@ class FixturesDashboardTest(unittest.TestCase):
         self.assertEqual(len(payload["cases"]), 1)
         case = payload["cases"][0]
         self.assertEqual(case["case_id"], "case_x")
-        self.assertNotIn("runs", case)                     # 出口统一叫 experiment_runs
+        self.assertNotIn("judge_verdicts", case)           # 出口统一叫 experiment_runs
         self.assertEqual([r["run_index"] for r in case["experiment_runs"]], [1, 2, 3])
         self.assertEqual(case["anchors"][0]["runs"][0]["run_verdict"], "unsupported")
+        self.assertEqual(case["input"]["question"], "q-x")
 
         self.assertEqual([c["case_id"] for c in payload["issue_cases"]], ["case_x"])
         self.assertEqual({a["match"] for a in payload["failed_anchors"]}, {"越界B", "绿C"})

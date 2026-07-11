@@ -1,0 +1,394 @@
+{
+  "$defs": {
+    "AnchorRecord": {
+      "description": "一条锚点 N 次 run 的汇总。计数和 flag 全部由 runs 派生，不可能与 runs 分叉。",
+      "properties": {
+        "anchor_id": {
+          "title": "Anchor Id",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "axis": {
+          "const": "faithfulness",
+          "title": "Axis",
+          "type": "string"
+        },
+        "match": {
+          "title": "Match",
+          "type": "string"
+        },
+        "expect": {
+          "enum": [
+            "supported",
+            "unsupported"
+          ],
+          "title": "Expect",
+          "type": "string"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        },
+        "runs": {
+          "items": {
+            "$ref": "#/$defs/AnchorRun"
+          },
+          "title": "Runs",
+          "type": "array"
+        },
+        "n": {
+          "readOnly": true,
+          "title": "N",
+          "type": "integer"
+        },
+        "unsupported_runs": {
+          "readOnly": true,
+          "title": "Unsupported Runs",
+          "type": "integer"
+        },
+        "supported_runs": {
+          "readOnly": true,
+          "title": "Supported Runs",
+          "type": "integer"
+        },
+        "not_extracted_runs": {
+          "readOnly": true,
+          "title": "Not Extracted Runs",
+          "type": "integer"
+        },
+        "ok_run_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "readOnly": true,
+          "title": "Ok Run Rate"
+        },
+        "flag": {
+          "description": "红锚必须次次抓住，漏一次即假阴；绿锚一次都不能误伤，错一次即假阳。",
+          "enum": [
+            "pass",
+            "false_positive",
+            "false_negative"
+          ],
+          "readOnly": true,
+          "title": "Flag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor_id",
+        "case_id",
+        "axis",
+        "match",
+        "expect",
+        "note",
+        "runs",
+        "n",
+        "unsupported_runs",
+        "supported_runs",
+        "not_extracted_runs",
+        "ok_run_rate",
+        "flag"
+      ],
+      "title": "AnchorRecord",
+      "type": "object"
+    },
+    "AnchorRun": {
+      "description": "一条锚点在第 run_index 次 judge 里的结局。\n\nrun_verdict 三态：judge 没抽出匹配的断言（not_extracted）≠ 判它 supported。\n绿锚从未被抽到也记 ok，靠 extract_rate 把这种低置信度的假绿暴露出来。",
+      "properties": {
+        "run_index": {
+          "title": "Run Index",
+          "type": "integer"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "matched": {
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          },
+          "title": "Matched",
+          "type": "array"
+        },
+        "run_verdict": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "not_extracted"
+          ],
+          "readOnly": true,
+          "title": "Run Verdict",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_index",
+        "ok",
+        "matched",
+        "run_verdict"
+      ],
+      "title": "AnchorRun",
+      "type": "object"
+    },
+    "Assertion": {
+      "description": "judge 忠实轴的一条断言。",
+      "properties": {
+        "assertion": {
+          "title": "Assertion",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "unsupported"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence": {
+          "default": "",
+          "title": "Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "assertion",
+        "verdict"
+      ],
+      "title": "Assertion",
+      "type": "object"
+    },
+    "CaseRecord": {
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "bucket": {
+          "title": "Bucket",
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/FixtureInput"
+        },
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/AnchorRecord"
+          },
+          "title": "Anchors",
+          "type": "array"
+        },
+        "judge_verdicts": {
+          "items": {
+            "$ref": "#/$defs/JudgeVerdict"
+          },
+          "title": "Judge Verdicts",
+          "type": "array"
+        },
+        "n": {
+          "readOnly": true,
+          "title": "N",
+          "type": "integer"
+        },
+        "run_pass_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "N 次 run 里「所有锚点同时 ok」的比例。与 l1/l2 轨的 pass_rate 同义，可横向比。",
+          "readOnly": true,
+          "title": "Run Pass Rate"
+        },
+        "anchor_count": {
+          "readOnly": true,
+          "title": "Anchor Count",
+          "type": "integer"
+        },
+        "passed_anchor_count": {
+          "readOnly": true,
+          "title": "Passed Anchor Count",
+          "type": "integer"
+        },
+        "anchor_pass_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "readOnly": true,
+          "title": "Anchor Pass Rate"
+        },
+        "has_issue": {
+          "readOnly": true,
+          "title": "Has Issue",
+          "type": "boolean"
+        },
+        "issue_types": {
+          "items": {
+            "enum": [
+              "pass",
+              "false_positive",
+              "false_negative"
+            ],
+            "type": "string"
+          },
+          "readOnly": true,
+          "title": "Issue Types",
+          "type": "array"
+        }
+      },
+      "required": [
+        "case_id",
+        "bucket",
+        "input",
+        "anchors",
+        "judge_verdicts",
+        "n",
+        "run_pass_rate",
+        "anchor_count",
+        "passed_anchor_count",
+        "anchor_pass_rate",
+        "has_issue",
+        "issue_types"
+      ],
+      "title": "CaseRecord",
+      "type": "object"
+    },
+    "FixtureInput": {
+      "description": "夹具冻结的 judge 输入，原样复制进产物，下钻时不必回查夹具文件。",
+      "properties": {
+        "question": {
+          "title": "Question",
+          "type": "string"
+        },
+        "answer": {
+          "title": "Answer",
+          "type": "string"
+        },
+        "tool_outputs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tool Outputs",
+          "type": "array"
+        },
+        "golden_points": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Golden Points",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "answer",
+        "tool_outputs",
+        "golden_points"
+      ],
+      "title": "FixtureInput",
+      "type": "object"
+    },
+    "HitPoint": {
+      "description": "judge 命中轴的一个 golden point。",
+      "properties": {
+        "point": {
+          "title": "Point",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "hit",
+            "miss"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence": {
+          "default": "",
+          "title": "Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "point",
+        "verdict"
+      ],
+      "title": "HitPoint",
+      "type": "object"
+    },
+    "JudgeVerdict": {
+      "description": "某次 run 的 judge 原始输出，未按锚点切分。下钻时用来看 judge 到底抽了什么。",
+      "properties": {
+        "run_index": {
+          "title": "Run Index",
+          "type": "integer"
+        },
+        "hit_axis": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/HitPoint"
+          },
+          "title": "Hit Axis",
+          "type": "array"
+        },
+        "faithfulness_axis": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          },
+          "title": "Faithfulness Axis",
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_index"
+      ],
+      "title": "JudgeVerdict",
+      "type": "object"
+    }
+  },
+  "description": "下钻详情。artifact: l2_fixtures_case_result.json",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "artifact": {
+      "const": "l2_fixtures_case_result",
+      "default": "l2_fixtures_case_result",
+      "title": "Artifact",
+      "type": "string"
+    },
+    "cases": {
+      "additionalProperties": {
+        "$ref": "#/$defs/CaseRecord"
+      },
+      "title": "Cases",
+      "type": "object"
+    }
+  },
+  "required": [
+    "cases"
+  ],
+  "title": "FixturesCaseResult",
+  "type": "object"
+}

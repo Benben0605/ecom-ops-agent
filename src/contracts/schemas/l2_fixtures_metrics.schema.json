@@ -1,0 +1,206 @@
+{
+  "$defs": {
+    "FailedAnchor": {
+      "description": "metrics 里的失败锚点索引；完整下钻回 case_result 按 anchor_id 找。",
+      "properties": {
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "anchor_id": {
+          "title": "Anchor Id",
+          "type": "string"
+        },
+        "match": {
+          "title": "Match",
+          "type": "string"
+        },
+        "expect": {
+          "enum": [
+            "supported",
+            "unsupported"
+          ],
+          "title": "Expect",
+          "type": "string"
+        },
+        "flag": {
+          "enum": [
+            "pass",
+            "false_positive",
+            "false_negative"
+          ],
+          "title": "Flag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "anchor_id",
+        "match",
+        "expect",
+        "flag"
+      ],
+      "title": "FailedAnchor",
+      "type": "object"
+    }
+  },
+  "description": "headline。artifact: l2_fixtures_metrics.json\n\n只存计数，率一律 computed——这样看到 extract_rate=0.25 时，分子分母就在旁边。\n唯一构造入口是 from_cases()，dashboard 的分桶拆解也调它，不许另写一份。",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "artifact": {
+      "const": "l2_fixtures_metrics",
+      "default": "l2_fixtures_metrics",
+      "title": "Artifact",
+      "type": "string"
+    },
+    "derived_from": {
+      "const": "l2_fixtures_case_result.json",
+      "default": "l2_fixtures_case_result.json",
+      "title": "Derived From",
+      "type": "string"
+    },
+    "n": {
+      "title": "N",
+      "type": "integer"
+    },
+    "case_count": {
+      "title": "Case Count",
+      "type": "integer"
+    },
+    "issue_case_count": {
+      "title": "Issue Case Count",
+      "type": "integer"
+    },
+    "anchor_count": {
+      "title": "Anchor Count",
+      "type": "integer"
+    },
+    "passed_anchor_count": {
+      "title": "Passed Anchor Count",
+      "type": "integer"
+    },
+    "red_anchor_count": {
+      "title": "Red Anchor Count",
+      "type": "integer"
+    },
+    "green_anchor_count": {
+      "title": "Green Anchor Count",
+      "type": "integer"
+    },
+    "anchor_runs": {
+      "title": "Anchor Runs",
+      "type": "integer"
+    },
+    "not_extracted_runs": {
+      "title": "Not Extracted Runs",
+      "type": "integer"
+    },
+    "red_runs": {
+      "title": "Red Runs",
+      "type": "integer"
+    },
+    "red_unsupported_runs": {
+      "title": "Red Unsupported Runs",
+      "type": "integer"
+    },
+    "green_runs": {
+      "title": "Green Runs",
+      "type": "integer"
+    },
+    "green_unsupported_runs": {
+      "title": "Green Unsupported Runs",
+      "type": "integer"
+    },
+    "failed_anchors": {
+      "items": {
+        "$ref": "#/$defs/FailedAnchor"
+      },
+      "title": "Failed Anchors",
+      "type": "array"
+    },
+    "failed_anchor_count": {
+      "readOnly": true,
+      "title": "Failed Anchor Count",
+      "type": "integer"
+    },
+    "anchor_pass_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "readOnly": true,
+      "title": "Anchor Pass Rate"
+    },
+    "red_anchor_recall": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "红锚该被判 unsupported = 越界被抓住。分母是 红锚数 × n。",
+      "readOnly": true,
+      "title": "Red Anchor Recall"
+    },
+    "green_anchor_fp_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "绿锚被判 unsupported = 误伤。与 red_anchor_recall 同一个分子形状，两种含义。",
+      "readOnly": true,
+      "title": "Green Anchor Fp Rate"
+    },
+    "extract_rate": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "抽取覆盖度：绿锚从未被抽到也记 pass，靠这个把低置信度的假绿暴露出来。",
+      "readOnly": true,
+      "title": "Extract Rate"
+    }
+  },
+  "required": [
+    "n",
+    "case_count",
+    "issue_case_count",
+    "anchor_count",
+    "passed_anchor_count",
+    "red_anchor_count",
+    "green_anchor_count",
+    "anchor_runs",
+    "not_extracted_runs",
+    "red_runs",
+    "red_unsupported_runs",
+    "green_runs",
+    "green_unsupported_runs",
+    "failed_anchors",
+    "failed_anchor_count",
+    "anchor_pass_rate",
+    "red_anchor_recall",
+    "green_anchor_fp_rate",
+    "extract_rate"
+  ],
+  "title": "FixturesMetrics",
+  "type": "object"
+}
