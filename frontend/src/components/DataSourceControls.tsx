@@ -7,6 +7,8 @@ interface DataSourceControlsProps {
   onLegacy: () => void;
   onExperiment: (expId: string) => void;
   onVariant: (variant: string) => void;
+  allowLegacy?: boolean;
+  emptyLabel?: string;
 }
 
 export default function DataSourceControls({
@@ -16,28 +18,31 @@ export default function DataSourceControls({
   onLegacy,
   onExperiment,
   onVariant,
+  allowLegacy = true,
+  emptyLabel = "无实验",
 }: DataSourceControlsProps) {
-  const agentExperiments = experiments.filter((experiment) => experiment.track === "agent");
-  const selected = agentExperiments.find((experiment) => experiment.exp_id === selection.expId) ?? null;
+  const selected = experiments.find((experiment) => experiment.exp_id === selection.expId) ?? null;
   const variants = selected?.variants ?? [];
-  const canUseExperiment = agentExperiments.length > 0;
+  const canUseExperiment = experiments.length > 0;
 
   return (
     <section className="panel data-source-panel">
       <div className="source-segmented">
-        <button
-          type="button"
-          className={selection.source === "legacy" ? "active" : ""}
-          onClick={onLegacy}
-        >
-          最新日志
-        </button>
+        {allowLegacy && (
+          <button
+            type="button"
+            className={selection.source === "legacy" ? "active" : ""}
+            onClick={onLegacy}
+          >
+            最新日志
+          </button>
+        )}
         <button
           type="button"
           className={selection.source === "experiment" ? "active" : ""}
           disabled={!canUseExperiment}
           onClick={() => {
-            const first = agentExperiments[0];
+            const first = experiments[0];
             if (first) onExperiment(first.exp_id);
           }}
         >
@@ -52,8 +57,8 @@ export default function DataSourceControls({
             disabled={selection.source !== "experiment" || loading || !canUseExperiment}
             onChange={(event) => onExperiment(event.target.value)}
           >
-            {!canUseExperiment && <option value="">无 agent 实验</option>}
-            {agentExperiments.map((experiment) => (
+            {!canUseExperiment && <option value="">{emptyLabel}</option>}
+            {experiments.map((experiment) => (
               <option key={experiment.exp_id} value={experiment.exp_id}>
                 {experiment.exp_id}
               </option>

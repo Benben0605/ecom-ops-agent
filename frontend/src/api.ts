@@ -267,6 +267,118 @@ export interface L2DashboardData {
   issue_cases: L2Case[];
 }
 
+export type FixtureAnchorExpectation = "supported" | "unsupported";
+export type FixtureRunVerdict = FixtureAnchorExpectation | "not_extracted";
+export type FixtureIssueType = "false_positive" | "false_negative";
+
+export interface FixtureMatchedAssertion {
+  assertion: string;
+  verdict: FixtureAnchorExpectation;
+  evidence: JsonValue;
+}
+
+export interface FixtureAnchorRun {
+  run_index: number;
+  run_verdict: FixtureRunVerdict;
+  ok: boolean;
+  matched: FixtureMatchedAssertion[];
+}
+
+/** 契约来源：src/contracts/l2_fixtures.py（docs/schemas/l2_fixtures_case_result.schema.json）。
+ *  改 python model 后同步这里——三层的"通过率"是三个不同的量，别混：
+ *  AnchorRun.ok / FixtureAnchor.ok_run_rate / FixtureCase.run_pass_rate。 */
+export type FixtureAnchorFlag = "pass" | FixtureIssueType;
+
+export interface FixtureAnchor {
+  anchor_id: string;
+  case_id: string;
+  axis: "faithfulness";
+  match: string;
+  expect: FixtureAnchorExpectation;
+  note: string;
+  flag: FixtureAnchorFlag;
+  n: number;
+  unsupported_runs: number;
+  supported_runs: number;
+  not_extracted_runs: number;
+  ok_run_rate: number | null;
+  runs: FixtureAnchorRun[];
+}
+
+export interface FixtureExperimentRun {
+  run_index: number;
+  hit_axis: HitAxisItem[];
+  faithfulness_axis: Array<Omit<FaithfulnessAxisItem, "issue_id"> & { issue_id?: string }>;
+}
+
+export interface FixtureInput {
+  question: string;
+  answer: string;
+  tool_outputs: string[];
+  golden_points: string[];
+}
+
+export interface FixtureCase {
+  case_id: string;
+  bucket: string;
+  input: FixtureInput;
+  n: number;
+  run_pass_rate: number | null;
+  anchor_count: number;
+  passed_anchor_count: number;
+  anchor_pass_rate: number | null;
+  has_issue: boolean;
+  issue_types: FixtureIssueType[];
+  anchors: FixtureAnchor[];
+  experiment_runs: FixtureExperimentRun[];
+}
+
+export interface FixtureStats {
+  case_count: number;
+  issue_case_count: number;
+  anchor_count: number;
+  passed_anchor_count: number;
+  red_anchor_count: number;
+  green_anchor_count: number;
+  red_unsupported_runs: number;
+  red_runs: number;
+  green_unsupported_runs: number;
+  green_runs: number;
+  not_extracted_runs: number;
+  anchor_runs: number;
+  anchor_pass_rate: number | null;
+  red_anchor_recall: number | null;
+  green_anchor_fp_rate: number | null;
+  extract_rate: number | null;
+  n: number;
+  failed_anchor_count: number;
+}
+
+export interface FixtureExpectBreakdown {
+  expect: FixtureAnchorExpectation;
+  anchor_count: number;
+  passed_anchor_count: number;
+  anchor_pass_rate: number | null;
+  anchor_runs: number;
+  unsupported_runs: number;
+  unsupported_run_rate: number | null;
+  not_extracted_runs: number;
+  extract_rate: number | null;
+}
+
+export interface L2FixturesDashboardData {
+  generated_at: string;
+  context: DashboardContext;
+  metrics: FixtureStats;
+  breakdowns: {
+    by_bucket: Array<FixtureStats & { bucket: string }>;
+    by_expect: FixtureExpectBreakdown[];
+  };
+  cases: FixtureCase[];
+  issue_cases: FixtureCase[];
+  failed_anchors: Array<FixtureAnchor & { bucket?: string }>;
+}
+
 export interface ChatRequest {
   session_id: string;
   user_input: string;
@@ -314,6 +426,9 @@ export const fetchEvalDashboard = (selection?: DashboardSelection) =>
 export const fetchL2Dashboard = (selection?: DashboardSelection) =>
   request<L2DashboardData>(dashboardUrl("/api/l2-eval-dashboard", selection));
 
+export const fetchL2FixturesDashboard = (selection: DashboardSelection) =>
+  request<L2FixturesDashboardData>(dashboardUrl("/api/l2-fixtures-dashboard", selection));
+
 export const saveL2RootCauseAnnotation = (payload: SaveL2RootCauseAnnotationPayload) =>
   request<L2RootCauseAnnotation>("/api/l2-root-cause-annotations", {
     method: "POST",
@@ -332,7 +447,7 @@ export const sendChat = (payload: ChatRequest) =>
 export interface ExperimentManifest {
   exp_id: string;
   name: string;
-  track: "agent" | "retrieval";
+  track: "agent" | "retrieval" | "l2_fixtures_judge";
   variants: Array<{ name: string; config: Record<string, JsonValue> }>;
   provenance: {
     git_commit: string;

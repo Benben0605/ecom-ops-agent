@@ -3,9 +3,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type DashboardSelection,
   fetchEvalDashboard,
+  fetchL2FixturesDashboard,
   fetchL2Dashboard,
   type EvalDashboardData,
   type L2DashboardData,
+  type L2FixturesDashboardData,
 } from "./api";
 
 interface QueryState<T> {
@@ -16,7 +18,7 @@ interface QueryState<T> {
   refetch: () => Promise<void>;
 }
 
-function useQuery<T>(fetcher: () => Promise<T>): QueryState<T> {
+function useQuery<T>(fetcher: () => Promise<T>, enabled = true): QueryState<T> {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -24,6 +26,7 @@ function useQuery<T>(fetcher: () => Promise<T>): QueryState<T> {
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     setError(null);
     setRefreshing(true);
     try {
@@ -39,31 +42,49 @@ function useQuery<T>(fetcher: () => Promise<T>): QueryState<T> {
         setRefreshing(false);
       }
     }
-  }, [fetcher]);
+  }, [enabled, fetcher]);
 
   useEffect(() => {
     mounted.current = true;
-    void load();
+    if (enabled) {
+      void load();
+    } else {
+      setData(null);
+      setError(null);
+      setLoading(false);
+      setRefreshing(false);
+    }
     return () => {
       mounted.current = false;
     };
-  }, [load]);
+  }, [enabled, load]);
 
   return { data, loading, refreshing, error, refetch: load };
 }
 
-export function useEval(selection: DashboardSelection): QueryState<EvalDashboardData> {
+export function useEval(selection: DashboardSelection, enabled = true): QueryState<EvalDashboardData> {
   const fetcher = useCallback(
     () => fetchEvalDashboard(selection),
     [selection.source, selection.expId, selection.variant],
   );
-  return useQuery(fetcher);
+  return useQuery(fetcher, enabled);
 }
 
-export function useL2(selection: DashboardSelection): QueryState<L2DashboardData> {
+export function useL2(selection: DashboardSelection, enabled = true): QueryState<L2DashboardData> {
   const fetcher = useCallback(
     () => fetchL2Dashboard(selection),
     [selection.source, selection.expId, selection.variant],
   );
-  return useQuery(fetcher);
+  return useQuery(fetcher, enabled);
+}
+
+export function useL2Fixtures(
+  selection: DashboardSelection,
+  enabled = true,
+): QueryState<L2FixturesDashboardData> {
+  const fetcher = useCallback(
+    () => fetchL2FixturesDashboard(selection),
+    [selection.source, selection.expId, selection.variant],
+  );
+  return useQuery(fetcher, enabled && Boolean(selection.expId && selection.variant));
 }

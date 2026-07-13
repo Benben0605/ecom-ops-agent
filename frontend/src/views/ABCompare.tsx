@@ -142,10 +142,11 @@ export default function ABCompare() {
   useEffect(() => {
     fetchExperiments()
       .then((list) => {
-        setExperiments(list);
-        if (list.length) {
-          setExpId(list[0].exp_id);
-          const vs = list[0].variants;
+        const comparable = list.filter((item) => item.track === "agent" || item.track === "retrieval");
+        setExperiments(comparable);
+        if (comparable.length) {
+          setExpId(comparable[0].exp_id);
+          const vs = comparable[0].variants;
           setVariantA(vs[0]?.name ?? "");
           setVariantB(vs[1]?.name ?? "");
         }

@@ -420,6 +420,56 @@ pre { margin: 6px 0 0; color: var(--slate-700); font-size: 9px; line-height: 1.5
   .chat-composer { grid-template-columns: 1fr 70px; padding: 9px; }.chat-composer button { min-width: 0; padding: 0 8px; }.chat-composer button svg { display: none; }
 }
 
+/* ===== L2 Judge 夹具 ===== */
+.fixture-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fixture-table table { min-width: 760px; }
+.fixture-table td:not(:first-child) { font-family: var(--mono); }
+.fixture-case-table table { min-width: 900px; }
+.fixture-case-table th:nth-child(4), .fixture-case-table th:nth-child(5) { width: 90px; }
+.fixture-case-table th:nth-child(6) { width: 210px; }
+.fixture-expect, .fixture-issue, .fixture-run-verdict { display: inline-flex; align-items: center; min-height: 20px; padding: 2px 7px; border: 1px solid; border-radius: 10px; font: 8px var(--mono); font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+.fixture-expect.unsupported, .fixture-issue.false_negative, .fixture-run-verdict.unsupported { color: var(--red); background: var(--red-bg); border-color: #fecaca; }
+.fixture-expect.supported, .fixture-run-verdict.supported { color: var(--green); background: var(--green-bg); border-color: #bbf7d0; }
+.fixture-issue.false_positive { color: var(--amber); background: var(--amber-bg); border-color: #fde68a; }
+.fixture-run-verdict.not_extracted { color: var(--slate-600); background: var(--slate-50); border-color: var(--slate-200); }
+.fixture-anchor-list { display: flex; flex-direction: column; gap: 9px; }
+.fixture-anchor { overflow: hidden; background: white; border: 1px solid var(--slate-200); border-radius: 7px; }
+.fixture-anchor.false_positive { border-left: 3px solid var(--amber); }
+.fixture-anchor.false_negative { border-left: 3px solid var(--red); }
+.fixture-anchor > summary { min-height: 48px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; list-style: none; cursor: pointer; }
+.fixture-anchor > summary::-webkit-details-marker { display: none; }
+.fixture-anchor > summary > div { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.fixture-anchor > summary b { color: var(--slate-700); font: 9px var(--mono); }
+.fixture-anchor > summary strong { color: var(--slate-500); font: 9px var(--mono); white-space: nowrap; }
+.fixture-anchor-body { padding: 10px; border-top: 1px solid var(--slate-100); background: var(--slate-50); }
+.fixture-definition { display: grid; grid-template-columns: 44px 1fr; gap: 7px 9px; }
+.fixture-definition dt { color: var(--slate-400); font: 8px var(--mono); text-transform: uppercase; }
+.fixture-definition dd { min-width: 0; color: var(--slate-600); font-size: 9px; line-height: 1.5; }
+.fixture-definition code { color: var(--blue-700); overflow-wrap: anywhere; }
+.fixture-run-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.fixture-run { overflow: hidden; background: white; border: 1px solid var(--slate-200); border-radius: 6px; }
+.fixture-run.ok { border-left: 2px solid var(--green); }
+.fixture-run.bad { border-left: 2px solid var(--red); }
+.fixture-run > summary { min-height: 38px; padding: 7px 9px; display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
+.fixture-run > summary::-webkit-details-marker { display: none; }
+.fixture-run > summary b { margin-right: auto; color: var(--slate-600); font: 9px var(--mono); }
+.fixture-run > summary > span:last-child { color: var(--slate-500); font: 8px var(--mono); }
+.fixture-matches { padding: 8px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--slate-100); }
+.fixture-match { padding: 8px; display: grid; grid-template-columns: 76px 1fr; gap: 8px; background: var(--slate-50); border: 1px solid var(--slate-100); border-radius: 5px; }
+.fixture-match > span { color: var(--slate-500); font: 8px var(--mono); font-weight: 700; text-transform: uppercase; }
+.fixture-match.unsupported, .fixture-match.miss { background: var(--red-bg); border-color: #fee2e2; }
+.fixture-match.unsupported > span, .fixture-match.miss > span { color: var(--red); }
+.fixture-match.supported, .fixture-match.hit { background: var(--green-bg); border-color: #dcfce7; }
+.fixture-match.supported > span, .fixture-match.hit > span { color: var(--green); }
+.fixture-match p { color: var(--slate-700); font-size: 10px; line-height: 1.45; }
+.fixture-match small { display: block; margin-top: 6px; color: var(--slate-400); font: 7px var(--mono); text-transform: uppercase; }
+.fixture-match pre { margin-top: 3px; }
+.fixture-full-runs { display: flex; flex-direction: column; gap: 8px; }
+.fixture-full-runs .fixture-match { margin-top: 6px; }
+.fixture-axis-label { display: block; margin: 10px 0 4px; color: var(--blue-600); font-size: 9px; }
+.fixture-raw { padding: 9px; background: var(--slate-50); border: 1px solid var(--slate-100); border-radius: 5px; }
+.judge-empty { min-height: 300px; background: white; border: 1px solid var(--border); border-radius: var(--radius); }
+
 /* ===== A/B 对比 ===== */
 .ab-controls { display: flex; gap: 12px; flex-wrap: wrap; }
 .ab-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--slate-600); }
@@ -465,3 +515,5 @@ tr.ab-flip { background: var(--amber-bg); }
 .ab-run-l2 summary { font-size: 12px; cursor: pointer; }
 .ab-run-l2 summary span { font-family: var(--mono); color: var(--slate-500); }
 @media (max-width: 900px) { .ab-variant-grid { grid-template-columns: 1fr; } }
+@media (max-width: 850px) { .fixture-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .fixture-match { grid-template-columns: 1fr; } }
