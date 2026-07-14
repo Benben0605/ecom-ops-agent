@@ -19,7 +19,11 @@
                 "expect": "supported",
                 "note": "paraphrase 更服帖→效果更好，防碎片化假阳"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_005",
@@ -39,7 +43,11 @@
                 "expect": "supported",
                 "note": "长池漏找假阳（退货退款验货后原路退回有据）"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_047",
@@ -60,7 +68,11 @@
                 "expect": "unsupported",
                 "note": "凭空加戏（捏造取消政策），防漏抽假阴"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_052",
@@ -81,7 +93,11 @@
                 "expect": "unsupported",
                 "note": "换货并轨退货，防漏抽假阴"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_012",
@@ -100,7 +116,11 @@
                 "match": "搭配|护肤流程|完整.{0,4}流程",
                 "note": "行动建议/不可证伪,不该抽;抽到也别判红"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_013",
@@ -130,7 +150,11 @@
                 "match": "物流轨迹",
                 "note": "待发货entails无轨迹,该supported"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_014",
@@ -155,7 +179,11 @@
                 "match": "转接人工|转人工|人工客服",
                 "note": "行动话术,不该抽"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_023",
@@ -174,7 +202,11 @@
                 "match": "方便携带",
                 "note": "独立小包/办公室零食→方便携带 近义"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_030",
@@ -205,7 +237,11 @@
                 "match": "保湿",
                 "note": "控油/清爽≠保湿 反向加戏 防洗绿"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_034",
@@ -236,7 +272,11 @@
                 "match": "拉伸",
                 "note": "瑜伽垫→瑜伽拉伸 一步外推(选X)"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_051",
@@ -264,7 +304,11 @@
                 "match": "2\\s*小时",
                 "note": "2小时是退货审核 套换货 防洗绿"
             }
-        ]
+        ],
+        "origin": {
+            "type": "phase0_legacy",
+            "note": "Phase0 judge大修期冻结（真实红案+注入变造混合，出处见Phase0踩坑账本）"
+        }
     },
     {
         "case_id": "case_078",
@@ -279,7 +323,7 @@
         "anchors": [
             {
                 "axis": "faithfulness",
-                "match": "常买的美妆|根据你.*美妆",
+                "match": "常买的美妆|根据你.*美妆|经常购买.*美妆",
                 "expect": "supported",
                 "note": "归因句正确转述（池里归因原文在）→该绿，防画像域碎片化假阳"
             },
@@ -289,7 +333,11 @@
                 "expect": "unsupported",
                 "note": "画像邻造该红：池里只有类目级归因、无购买史明细——具体单品(实为u_gear所购)/活动都是编造；扩画像内容域后的幻觉recall锚"
             }
-        ]
+        ],
+        "origin": {
+            "type": "synthetic_injection",
+            "note": "手工变造答案+实跑池（2026-07-04，画像邻造阴性对照，L2-5反向验证）"
+        }
     },
     {
         "case_id": "case_072",
@@ -311,7 +359,11 @@
                 "expect": "supported",
                 "note": "D-judge-fp-one-step 该绿锚：商品名「助眠香薰」+薰衣草调双重支撑，Day2判过同款supported；判unsupported=judge假阳"
             }
-        ]
+        ],
+        "origin": {
+            "type": "frozen_trace",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        }
     },
     {
         "case_id": "case_079",
@@ -336,6 +388,10 @@
                 "expect": "unsupported",
                 "note": "D-sales-puffery 该红锚（成对控制,L2-5）：recommend池按价格排序零热度信息，销量话术必须抓——放绿=刹车松了"
             }
-        ]
+        ],
+        "origin": {
+            "type": "frozen_trace",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        }
     }
 ]

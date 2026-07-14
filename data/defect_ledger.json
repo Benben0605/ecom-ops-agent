@@ -1,8 +1,14 @@
 [
     {
         "id": "D-cluster-c-source-gap",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_073", "case_075"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_073",
+            "case_075"
+        ],
         "axis": "faithfulness",
         "signature": "analyze_ops 源留白三连：销售额缺单数→池外心算「只卖1单」；订单统计被当在售清单→「仅有X在售」；类目不命中是死胡同→放弃或脑补归类",
         "root_cause": "源留白",
@@ -14,8 +20,14 @@
     },
     {
         "id": "D-verbatim-serial",
-        "born": {"phase": "Phase3", "exp_id": "20260705_124746_cluster_c_fix_analyze_source"},
-        "cases": ["case_073", "case_071"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260705_124746_cluster_c_fix_analyze_source"
+        },
+        "cases": [
+            "case_073",
+            "case_071"
+        ],
         "axis": "faithfulness",
         "signature": "转述精确性：把A商品的数字安到B头上（坚果¥299实为蓝牙耳机）；「每款≤150」说成「合计≤150」",
         "root_cause": "模型边界",
@@ -27,8 +39,14 @@
     },
     {
         "id": "D-sales-puffery",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_074", "case_076"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_074",
+            "case_076"
+        ],
         "axis": "faithfulness",
         "signature": "销量话术无据：顾客问「卖得好吗」，recommend池按价格排序零热度信息，模型用「卖得不错/热销单品」包装推荐",
         "root_cause": "模型边界",
@@ -40,21 +58,38 @@
     },
     {
         "id": "D-judge-fp-one-step",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_072", "case_079"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_072",
+            "case_079"
+        ],
         "axis": "faithfulness",
         "signature": "疑judge假阳：「助眠香薰→放松助眠」（商品名支撑，Day2判过supported）；「咖啡提神/坚果营养」（一步品类外推，判定层原则该绿）",
-        "root_cause": "judge假阳(待钉)",
+        "root_cause": "judge模型边界（间歇1/4）",
         "cluster": "judge判定层·一步外推",
-        "status": "open",
+        "status": "wontfix",
         "freq": "1/3each",
-        "verify": "fixtures 加该绿锚 N=4 判 supported；复发则修判定层prompt并配该红对照(L2-5)",
+        "verify": "已裁(2026-07-14)：N=4 该绿锚1/4间歇假阳，与012/030同家族同档位；fixtures锚留作永久回归，对账只作观察；v3再平衡后该绿锚假阳0/8(档位反升级)，结案加固",
         "fix_exp_id": null
     },
     {
         "id": "D-attr-fabrication",
-        "born": {"phase": "Phase0-3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_006", "case_012", "case_016", "case_034", "case_042", "case_066", "case_068"],
+        "born": {
+            "phase": "Phase0-3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_006",
+            "case_012",
+            "case_016",
+            "case_034",
+            "case_042",
+            "case_066",
+            "case_068"
+        ],
         "axis": "faithfulness",
         "signature": "商品属性加戏族（Phase0簇②延续）：轻便好收纳/缓冲性能/适配运动场景/完整护肤流程——池里highlight没有的属性",
         "root_cause": "待取证（judge假阳 vs 真加戏逐条分流）",
@@ -66,8 +101,13 @@
     },
     {
         "id": "D-hit-literal",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_082"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_082"
+        ],
         "axis": "hit",
         "signature": "命中轴字面主义：答案推了洁面乳(¥69预算内)但没说「美妆护肤」四字，judge判miss——不认商品→类目归属",
         "root_cause": "judge假阳",
@@ -79,8 +119,13 @@
     },
     {
         "id": "D-extract-selfdesc",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_012"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_012"
+        ],
         "axis": "faithfulness",
         "signature": "能力自述被抽成断言：「我可以帮你查订单/推荐/转人工」整组进忠实轴判UNSUP——自我能力描述不是对池的事实断言",
         "root_cause": "judge边界(抽取层)",
@@ -92,8 +137,13 @@
     },
     {
         "id": "D-048-zero-orders-claim",
-        "born": {"phase": "Phase3", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_048"],
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_048"
+        ],
         "axis": "faithfulness",
         "signature": "「运动户外还没有订单」——池里运动户外有2单，疑真错（与负存在边界不同：这是与池矛盾非池外）",
         "root_cause": "待取证",
@@ -105,8 +155,13 @@
     },
     {
         "id": "D-049-exchange-recall",
-        "born": {"phase": "Phase2", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_049"],
+        "born": {
+            "phase": "Phase2",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_049"
+        ],
         "axis": "hit",
         "signature": "15天质量换货点 miss×3：kb检索换货块被top3挡门外（#4差0.001），Phase2已裁根因=检索层",
         "root_cause": "检索层",
@@ -118,8 +173,13 @@
     },
     {
         "id": "D-017-completeness",
-        "born": {"phase": "Phase0", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_017"],
+        "born": {
+            "phase": "Phase0",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_017"
+        ],
         "axis": "hit",
         "signature": "多意图答案完整性：订单状态/eta漏转述×3（Phase1已证非规划缺陷、planner修不了）",
         "root_cause": "多意图综合层",
@@ -131,8 +191,18 @@
     },
     {
         "id": "D-multi-intent-flaky",
-        "born": {"phase": "Phase1", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_013", "case_014", "case_020", "case_027", "case_052", "case_067"],
+        "born": {
+            "phase": "Phase1",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_013",
+            "case_014",
+            "case_020",
+            "case_027",
+            "case_052",
+            "case_067"
+        ],
         "axis": "hit",
         "signature": "多意图/复合转述间歇漏点（~1/3各）：067漏已取消、014漏热销排名、027漏运费点等——067家族",
         "root_cause": "间歇注意力",
@@ -144,8 +214,14 @@
     },
     {
         "id": "D-policy-synthesis",
-        "born": {"phase": "Phase0", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_045", "case_052"],
+        "born": {
+            "phase": "Phase0",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_045",
+            "case_052"
+        ],
         "axis": "faithfulness",
         "signature": "政策合成残留：「非质量问题无法退货」把七天无理由和质量换货合成出反事实（Phase0簇①③半解遗产）",
         "root_cause": "模型边界",
@@ -157,8 +233,16 @@
     },
     {
         "id": "D-neg-existence",
-        "born": {"phase": "Phase0", "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"},
-        "cases": ["case_021", "case_043", "case_064", "case_065"],
+        "born": {
+            "phase": "Phase0",
+            "exp_id": "20260704_224852_phase3_factual_buckets_l1_l2"
+        },
+        "cases": [
+            "case_021",
+            "case_043",
+            "case_064",
+            "case_065"
+        ],
         "axis": "faithfulness",
         "signature": "负存在/exhaustiveness边界：「暂无售后订单」「仅此一款」「10007不会配送」「eta显示为—」——判池里没有的东西不存在",
         "root_cause": "judge/agent边界",
@@ -170,8 +254,21 @@
     },
     {
         "id": "D-l1-beneficial-extra",
-        "born": {"phase": "1.0-Phase3", "exp_id": "20260705_124746_cluster_c_fix_analyze_source"},
-        "cases": ["case_013", "case_014", "case_017", "case_040", "case_066", "case_070", "case_075", "case_076", "case_077"],
+        "born": {
+            "phase": "1.0-Phase3",
+            "exp_id": "20260705_124746_cluster_c_fix_analyze_source"
+        },
+        "cases": [
+            "case_013",
+            "case_014",
+            "case_017",
+            "case_040",
+            "case_066",
+            "case_070",
+            "case_075",
+            "case_076",
+            "case_077"
+        ],
         "axis": "l1",
         "signature": "L1 Counter口径记红的有益额外调用：探测重试(075坚果→食品)、顾客向pivot(077弹回后荐)、参数探索(014/066)——L2双轴全绿",
         "root_cause": "L1口径边界",
@@ -180,5 +277,24 @@
         "freq": "结构性",
         "verify": "已裁：L1抓浪费/L2平反有益，分层叙事点；对账只作观察",
         "fix_exp_id": null
+    },
+    {
+        "id": "D-extract-buried-claims",
+        "born": {
+            "phase": "Phase3",
+            "exp_id": "fixtures首跑N=4(2026-07-05)+抽取层立场A裁决(2026-07-14)"
+        },
+        "cases": [
+            "case_078",
+            "case_079"
+        ],
+        "axis": "faithfulness",
+        "signature": "埋在搭话/营销口吻里的可证伪主张被抽取层整句放过：画像邻造(你买过X/X区搞活动)recall 0/4、销量话术(卖得很不错)recall 1/4——真幻觉静默逃逸成假阴",
+        "root_cause": "judge假阴(抽取层：修辞豁免误吞可证伪主张)",
+        "cluster": "judge抽取层",
+        "status": "fixed",
+        "freq": "0/4+1/4",
+        "verify": "已验收(2026-07-14)：v2修抽取(该红锚recall 0/4,1/4→4/4)→连坐爆炸(072/079该绿假阳7/8)→v3判定层再平衡(该绿0/8+同句功效绿/销量红劈开8/8)→刹车组N=8复测(051回8/8零漏抽,噪声裁决)。残留显式记名：052换货并轨锚 7/8×2轮(≈判定噪声地板)，030不带走水分老边界不变",
+        "fix_exp_id": "20260714_012752_extraction_gate_v3_rebalance"
     }
 ]
