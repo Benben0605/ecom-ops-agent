@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections import Counter, defaultdict
-from datetime import datetime
 import hashlib
 import json
+from collections import Counter, defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,6 @@ from src.eval.l2.annotations import (
     build_l2_issue_id,
     load_latest_l2_annotations,
 )
-
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENTS_ROOT = ROOT / "logs" / "experiments"
@@ -84,7 +83,9 @@ def _last_assistant_text(messages: list[dict[str, Any]]) -> str:
     return ""
 
 
-def _load_eval_cases(root: Path) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+def _load_eval_cases(
+    root: Path,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     cases = _load_json(root / "data" / "eval_cases.json", [])
     if not isinstance(cases, list):
         cases = []
@@ -135,9 +136,7 @@ def _context(
     drift_hint: str = "case 文案和 golden 回填可能与历史运行时不同。",
 ) -> dict[str, Any]:
     manifest_sha = (
-        manifest.get("provenance", {})
-        .get("dataset_sha", {})
-        .get(dataset_key)
+        manifest.get("provenance", {}).get("dataset_sha", {}).get(dataset_key)
     )
     current_sha = _sha256(root / dataset_rel)
     warnings: list[str] = []
@@ -149,7 +148,9 @@ def _context(
                 f"当前 {dataset_rel} 与该实验记录的 dataset_sha 不一致，{drift_hint}"
             )
 
-    modified_values = [value for value in (_modified_at(path) for path in source_paths) if value]
+    modified_values = [
+        value for value in (_modified_at(path) for path in source_paths) if value
+    ]
     return {
         "mode": "experiment",
         "exp_id": exp_id,
@@ -195,9 +196,7 @@ def _messages_by_session(records: list[Any]) -> dict[str, list[dict[str, Any]]]:
         session_id = record.get("session_id")
         messages = record.get("messages")
         if session_id and isinstance(messages, list):
-            out[str(session_id)] = [
-                item for item in messages if isinstance(item, dict)
-            ]
+            out[str(session_id)] = [item for item in messages if isinstance(item, dict)]
     return out
 
 
@@ -296,9 +295,7 @@ def _finalize_l1_bucket(stats: dict[str, float]) -> dict[str, Any]:
     stats["routing_accuracy"] = _rate(
         stats["route_hit_count"], stats["positive_case_count"]
     )
-    stats["misfire_rate"] = _rate(
-        stats["misfire_count"], stats["evaluated_case_count"]
-    )
+    stats["misfire_rate"] = _rate(stats["misfire_count"], stats["evaluated_case_count"])
     return {key: _clean_number(value) for key, value in stats.items()}
 
 
@@ -361,12 +358,8 @@ def build_l1_experiment_dashboard_data(
         for position, run in enumerate(raw_runs):
             run_index = position + 1
             trace = _trace_for_run(traces, run_index, position)
-            called_tools = [
-                str(tool) for tool in run.get("called_tools", []) if tool
-            ]
-            missing_tools = [
-                str(tool) for tool in run.get("missing_tools", []) if tool
-            ]
+            called_tools = [str(tool) for tool in run.get("called_tools", []) if tool]
+            missing_tools = [str(tool) for tool in run.get("missing_tools", []) if tool]
             unexpected_tools = [
                 str(tool) for tool in run.get("unexpected_tools", []) if tool
             ]
@@ -458,7 +451,10 @@ def build_l1_experiment_dashboard_data(
                 [audit for audit in combined_audits if audit.get("tool_error")]
             ),
             "tool_duration_ms": round(
-                sum(float(audit.get("tool_duration_ms") or 0) for audit in combined_audits),
+                sum(
+                    float(audit.get("tool_duration_ms") or 0)
+                    for audit in combined_audits
+                ),
                 2,
             ),
             "last_assistant_message": _last_assistant_text(
@@ -583,13 +579,9 @@ def _l2_passed(raw: dict[str, Any]) -> bool:
 
 
 def _score_from_verdict(verdict: dict[str, Any]) -> dict[str, Any]:
-    hit_axis = [
-        item for item in verdict.get("hit_axis", []) if isinstance(item, dict)
-    ]
+    hit_axis = [item for item in verdict.get("hit_axis", []) if isinstance(item, dict)]
     faithfulness_axis = [
-        item
-        for item in verdict.get("faithfulness_axis", [])
-        if isinstance(item, dict)
+        item for item in verdict.get("faithfulness_axis", []) if isinstance(item, dict)
     ]
     hit_ok = sum(item.get("verdict") == "hit" for item in hit_axis)
     faith_ok = sum(item.get("verdict") == "supported" for item in faithfulness_axis)
@@ -929,12 +921,20 @@ def build_l2_fixtures_experiment_dashboard_data(
 
     result_path = variant_dir / "eval" / "l2_fixtures_case_result.json"
     metrics_path = variant_dir / "eval" / "l2_fixtures_metrics.json"
-    case_result = (load_artifact(result_path, FixturesCaseResult) if result_path.exists()
-                   else FixturesCaseResult(cases={}))
-    metrics = (load_artifact(metrics_path, FixturesMetrics) if metrics_path.exists()
-               else FixturesMetrics.from_cases(case_result.cases.values()))
+    case_result = (
+        load_artifact(result_path, FixturesCaseResult)
+        if result_path.exists()
+        else FixturesCaseResult(cases={})
+    )
+    metrics = (
+        load_artifact(metrics_path, FixturesMetrics)
+        if metrics_path.exists()
+        else FixturesMetrics.from_cases(case_result.cases.values())
+    )
 
-    cases = sorted(case_result.cases.values(), key=lambda c: (not c.has_issue, c.case_id))
+    cases = sorted(
+        case_result.cases.values(), key=lambda c: (not c.has_issue, c.case_id)
+    )
     by_bucket: dict[str, list[CaseRecord]] = defaultdict(list)
     for case in cases:
         by_bucket[case.bucket].append(case)
@@ -960,7 +960,10 @@ def build_l2_fixtures_experiment_dashboard_data(
         "metrics": metrics.model_dump(),
         "breakdowns": {
             "by_bucket": [
-                {"bucket": bucket, **FixturesMetrics.from_cases(bucket_cases).model_dump()}
+                {
+                    "bucket": bucket,
+                    **FixturesMetrics.from_cases(bucket_cases).model_dump(),
+                }
                 for bucket, bucket_cases in sorted(by_bucket.items())
             ],
             "by_expect": [
@@ -971,7 +974,13 @@ def build_l2_fixtures_experiment_dashboard_data(
         "cases": [_fixture_case_row(case) for case in cases],
         "issue_cases": [_fixture_case_row(case) for case in cases if case.has_issue],
         "failed_anchors": [
-            {**anchor.model_dump(), "bucket": case.bucket, "question": case.input.question}
-            for case in cases for anchor in case.anchors if anchor.flag != "pass"
+            {
+                **anchor.model_dump(),
+                "bucket": case.bucket,
+                "question": case.input.question,
+            }
+            for case in cases
+            for anchor in case.anchors
+            if anchor.flag != "pass"
         ],
     }

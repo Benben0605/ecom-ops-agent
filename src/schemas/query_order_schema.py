@@ -5,12 +5,8 @@ QUERY_ORDER_SCHEMA = {
         "description": "查询订单状态",
         "parameters": {
             "type": "object",
-            "properties": {
-                "order_id": {
-                    "type": "string"
-                }
-            },
-            "required": ["order_id"]
-        }
-    }
+            "properties": {"order_id": {"type": "string"}},
+            "required": ["order_id"],
+        },
+    },
 }

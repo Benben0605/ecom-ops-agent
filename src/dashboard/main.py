@@ -1,11 +1,10 @@
+import json
 from collections import Counter, defaultdict
 from datetime import datetime
-import json
 from pathlib import Path
 from typing import Any
 
 from src.dashboard.experiment_adapter import build_l1_experiment_dashboard_data
-
 
 ROOT = Path(__file__).parents[2]
 

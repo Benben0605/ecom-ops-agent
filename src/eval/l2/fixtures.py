@@ -7,6 +7,7 @@ judge prompt 每改一版都跑这个，别再靠单 run + 肉眼。
 入口只有 src.experiment.runner（track=l2_fixtures_judge）；本模块只算不落盘。
 产物 schema 见 src/contracts/l2_fixtures.py，计数/通过率一律由 model computed，本模块不自己算。
 """
+
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -39,12 +40,18 @@ def _load_fixtures() -> list[dict]:
 
 def fixture_case_index() -> list[tuple[str, str]]:
     """(case_id, bucket)：夹具文件没有 bucket，按 id 从 eval_cases 借。供 runner 解析过滤条件。"""
-    buckets = {c["id"]: c["bucket"] for c in json.loads(EVAL_CASES.read_text(encoding="utf-8"))}
-    return [(fx["case_id"], buckets.get(fx["case_id"], "unknown")) for fx in _load_fixtures()]
+    buckets = {
+        c["id"]: c["bucket"] for c in json.loads(EVAL_CASES.read_text(encoding="utf-8"))
+    }
+    return [
+        (fx["case_id"], buckets.get(fx["case_id"], "unknown"))
+        for fx in _load_fixtures()
+    ]
 
 
-def _anchor_record(case_id: str, index: int, anchor: dict,
-                   verdicts: list[JudgeVerdict]) -> AnchorRecord:
+def _anchor_record(
+    case_id: str, index: int, anchor: dict, verdicts: list[JudgeVerdict]
+) -> AnchorRecord:
     if anchor["axis"] != "faithfulness":
         raise ValueError(
             f"[{case_id}] 锚点 axis={anchor['axis']!r} 不支持——本模块只匹配 faithfulness_axis。"
@@ -82,7 +89,10 @@ def _print_anchor(a: AnchorRecord) -> None:
 
 
 def _case_record(fx: dict, bucket: str, verdicts: list[JudgeVerdict]) -> CaseRecord:
-    anchors = [_anchor_record(fx["case_id"], i, a, verdicts) for i, a in enumerate(fx["anchors"])]
+    anchors = [
+        _anchor_record(fx["case_id"], i, a, verdicts)
+        for i, a in enumerate(fx["anchors"])
+    ]
     for a in anchors:
         _print_anchor(a)
     return CaseRecord(
@@ -115,9 +125,13 @@ def run_fixtures(
     cases = {}
     for i, fx in enumerate(fixtures):
         print(f"\n[{fx['case_id']}]")
-        verdicts = [JudgeVerdict(run_index=j, **raw)
-                    for j, raw in enumerate(flat[i * n:(i + 1) * n], start=1)]
-        cases[fx["case_id"]] = _case_record(fx, buckets.get(fx["case_id"], "unknown"), verdicts)
+        verdicts = [
+            JudgeVerdict(run_index=j, **raw)
+            for j, raw in enumerate(flat[i * n : (i + 1) * n], start=1)
+        ]
+        cases[fx["case_id"]] = _case_record(
+            fx, buckets.get(fx["case_id"], "unknown"), verdicts
+        )
 
     return FixturesCaseResult(cases=cases), FixturesMetrics.from_cases(cases.values())
 
@@ -126,9 +140,11 @@ if __name__ == "__main__":
     # 惰性 import 避免 runner ↔ fixtures 循环导入；本模块不再自行落盘，统一走 logs/experiments/
     from src.experiment.runner import Experiment, Variant, run_experiment
 
-    run_experiment(Experiment(
-        name="l2_fixtures_judge",
-        track="l2_fixtures_judge",
-        variants=[Variant("A_baseline", {})],
-        n=N,
-    ))
+    run_experiment(
+        Experiment(
+            name="l2_fixtures_judge",
+            track="l2_fixtures_judge",
+            variants=[Variant("A_baseline", {})],
+            n=N,
+        )
+    )

@@ -1,7 +1,7 @@
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from src.eval.l2.annotations import (
     build_l2_issue_id,
@@ -38,9 +38,7 @@ class L2DashboardDataTest(unittest.TestCase):
                 json.dumps(
                     {
                         "session_id": "session_a",
-                        "messages": [
-                            {"role": "tool", "content": "source tool output"}
-                        ],
+                        "messages": [{"role": "tool", "content": "source tool output"}],
                     }
                 )
                 + "\n",
@@ -150,7 +148,9 @@ class L2DashboardDataTest(unittest.TestCase):
             self.assertEqual(annotation["root_cause"], "prompt 约束缺失")
             self.assertEqual(annotation["root_cause_label"], "prompt 约束缺失")
             self.assertIn("根因：prompt 约束缺失", annotation["summary"])
-            self.assertEqual(latest[annotation["issue_id"]]["root_cause"], "prompt 约束缺失")
+            self.assertEqual(
+                latest[annotation["issue_id"]]["root_cause"], "prompt 约束缺失"
+            )
 
 
 if __name__ == "__main__":

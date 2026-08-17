@@ -1,17 +1,23 @@
+import json
 import time
 from uuid import uuid4
 
 from openai import OpenAI
-from src.schemas.query_order_schema import QUERY_ORDER_SCHEMA
-from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
-from src.schemas.recommend_product_schema import RECOMMEND_PRODUCT_SCHEMA
+
+from src import config
+from src.audit import AuditRecorder, NoOpRecorder, ToolAudit
 from src.schemas.analyze_ops_schema import ANALYZE_OPS_SCHEMA
 from src.schemas.escalate_to_human_schema import ESCALATE_TO_HUMAN_SCHEMA
-from src import config
-from src.tools import kb_search, query_order, recommend_product, analyze_ops, escalate_to_human
-import json
-
-from src.audit import ToolAudit, AuditRecorder, NoOpRecorder
+from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
+from src.schemas.query_order_schema import QUERY_ORDER_SCHEMA
+from src.schemas.recommend_product_schema import RECOMMEND_PRODUCT_SCHEMA
+from src.tools import (
+    analyze_ops,
+    escalate_to_human,
+    kb_search,
+    query_order,
+    recommend_product,
+)
 
 client = OpenAI(api_key=config.API_KEY, base_url=config.BASE_URL)
 
@@ -23,7 +29,13 @@ TOOLS = {
     "escalate_to_human": escalate_to_human.run,
 }
 
-tools = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ANALYZE_OPS_SCHEMA, ESCALATE_TO_HUMAN_SCHEMA]
+tools = [
+    QUERY_ORDER_SCHEMA,
+    KB_SEARCH_SCHEMA,
+    RECOMMEND_PRODUCT_SCHEMA,
+    ANALYZE_OPS_SCHEMA,
+    ESCALATE_TO_HUMAN_SCHEMA,
+]
 
 # 接受执行层注入 user_id 的工具（user_id 是会话身份，不进 tool schema、不让 LLM 填）
 _USER_CONTEXT_TOOLS = {"recommend_product"}
@@ -39,7 +51,8 @@ _ROLE_PROMPTS = {
 }
 _AUDIENCE_GATE = "工具描述中标注了受众的（如「商家工具」），只对身份匹配的用户使用。"
 
-class ChatSession():
+
+class ChatSession:
     """单会话多轮对话，内置工具路由与历史压缩。
 
     self.messages 全程只存放 JSON 原生类型（dict/list/str/...），
@@ -47,12 +60,20 @@ class ChatSession():
     否则下一轮请求会因为 tool_calls 被 str() 降级而报 400。
     """
 
-    def __init__(self, system_prompt: str = _system_prompt, audit_recorder=None,
-                 tool_schemas: list | None = None, tool_impls: dict | None = None,
-                 session_id: str | None = None, model: str = config.MODEL,
-                 user_context: dict | None = None):
+    def __init__(
+        self,
+        system_prompt: str = _system_prompt,
+        audit_recorder=None,
+        tool_schemas: list | None = None,
+        tool_impls: dict | None = None,
+        session_id: str | None = None,
+        model: str = config.MODEL,
+        user_context: dict | None = None,
+    ):
         self.id = session_id or uuid4().hex
-        self.model = model  # 主推理模型，实验 harness 可按变体换；压缩摘要仍走 config.MODEL
+        self.model = (
+            model  # 主推理模型，实验 harness 可按变体换；压缩摘要仍走 config.MODEL
+        )
         # 用户上下文（Phase3）：{"role", "user_id"} 两字段正交——role 是会话属性（生产来自登录态），
         # 拼进 system_prompt 喂 L1 路由；user_id 是顾客画像库主键，留给工具派发注入喂 L2 个性化。
         # session 只消费上下文、不解析画像（画像解析在工具内）
@@ -60,7 +81,7 @@ class ChatSession():
         self.role = (user_context or {}).get("role")
         if self.role:
             system_prompt = system_prompt + _ROLE_PROMPTS[self.role] + _AUDIENCE_GATE
-        self.messages = [{"role": "system", "content": system_prompt} ]
+        self.messages = [{"role": "system", "content": system_prompt}]
         self.audit_recorder = audit_recorder or AuditRecorder()
         # 默认全工具（单 Agent 不变）；专家 Agent 传子集
         self.tool_schemas = tool_schemas if tool_schemas is not None else tools
@@ -75,21 +96,30 @@ class ChatSession():
         self.messages.append({"role": "user", "content": user_input})
         while True:
             r = client.chat.completions.create(
-                model=self.model,
-                messages=self.messages,
-                tools=self.tool_schemas
+                model=self.model, messages=self.messages, tools=self.tool_schemas
             )
             assistant_message = r.choices[0].message
             tool_calls = assistant_message.tool_calls
-            
+
             if not tool_calls:
-                self.messages.append({"role": assistant_message.role, "content": assistant_message.content})
+                self.messages.append(
+                    {
+                        "role": assistant_message.role,
+                        "content": assistant_message.content,
+                    }
+                )
                 prompt_tokens = r.usage.prompt_tokens
                 self._maybe_compress(prompt_tokens)
                 return assistant_message.content
-            
+
             tool_calls_dicts = [tc.model_dump() for tc in tool_calls]
-            self.messages.append({"role": assistant_message.role, "content": assistant_message.content, "tool_calls": tool_calls_dicts})
+            self.messages.append(
+                {
+                    "role": assistant_message.role,
+                    "content": assistant_message.content,
+                    "tool_calls": tool_calls_dicts,
+                }
+            )
             for tool_call in tool_calls:
                 func_name = tool_call.function.name
                 start = time.perf_counter()
@@ -106,9 +136,9 @@ class ChatSession():
                         has_tool_call=True,
                         tool_name=func_name,
                         tool_params=func_dict,
-                        tool_duration_ms=elapsed, 
-                        tool_output=result
-                    )   
+                        tool_duration_ms=elapsed,
+                        tool_output=result,
+                    )
                 except Exception as e:
                     result = f"工具执行失败，错误信息：{e}"
                     elapsed = (time.perf_counter() - start) * 1000
@@ -119,16 +149,13 @@ class ChatSession():
                         tool_params=tool_call.function.arguments,
                         tool_duration_ms=elapsed,
                         tool_output=result,
-                        tool_error=str(e)
+                        tool_error=str(e),
                     )
                 self.audit_recorder.record(tool_audit)
 
-                self.messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": result
-                })
-            
+                self.messages.append(
+                    {"role": "tool", "tool_call_id": tool_call.id, "content": result}
+                )
 
     def _maybe_compress(self, prompt_tokens: int):
         """超过阈值时把早期历史摘要成一条 system 消息，保留最近 lately_round 轮 user 之后的全部消息。
@@ -147,7 +174,10 @@ class ChatSession():
         old = self.messages[1:cut]
         recent = self.messages[cut:]
 
-        summary_prompt = "请用一段简洁中文总结以下对话的关键信息（用户意图、已查询到的订单/政策事实、未完成的事项），保留对后续回答有用的事实：\n\n" + "\n".join(json.dumps(old_dict, ensure_ascii=False) for old_dict in old)
+        summary_prompt = (
+            "请用一段简洁中文总结以下对话的关键信息（用户意图、已查询到的订单/政策事实、未完成的事项），保留对后续回答有用的事实：\n\n"
+            + "\n".join(json.dumps(old_dict, ensure_ascii=False) for old_dict in old)
+        )
         s = client.chat.completions.create(
             model=config.MODEL,
             messages=[{"role": "user", "content": summary_prompt}],
@@ -175,7 +205,12 @@ CUSTOMER_TOOL_IMPLS = {
     "recommend_product": recommend_product.run,
     "escalate_to_human": escalate_to_human.run,
 }
-CUSTOMER_TOOL_SCHEMAS = [QUERY_ORDER_SCHEMA, KB_SEARCH_SCHEMA, RECOMMEND_PRODUCT_SCHEMA, ESCALATE_TO_HUMAN_SCHEMA]
+CUSTOMER_TOOL_SCHEMAS = [
+    QUERY_ORDER_SCHEMA,
+    KB_SEARCH_SCHEMA,
+    RECOMMEND_PRODUCT_SCHEMA,
+    ESCALATE_TO_HUMAN_SCHEMA,
+]
 CUSTOMER_PROMPT = "你是面向【客户】的电商客服助手，负责订单查询、售后/政策咨询、商品推荐。必填参数齐全时直接调用工具，不要因选填参数缺失而反问；必填参数缺失且无法从对话推断时，先向用户询问澄清，不要猜测或随意填充。若没有任何工具能满足请求，调用 escalate_to_human 转人工，不要硬调最接近的工具兜底。"
 
 # ---- 专家 2：商家侧（运营数据分析）----
@@ -194,7 +229,10 @@ ASK_CUSTOMER_AGENT_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "转交给客户服务专家的完整子任务描述"}
+                "query": {
+                    "type": "string",
+                    "description": "转交给客户服务专家的完整子任务描述",
+                }
             },
             "required": ["query"],
         },
@@ -208,7 +246,10 @@ ASK_MERCHANT_AGENT_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "转交给运营分析专家的完整子任务描述"}
+                "query": {
+                    "type": "string",
+                    "description": "转交给运营分析专家的完整子任务描述",
+                }
             },
             "required": ["query"],
         },
@@ -222,7 +263,9 @@ class SupervisorAgent:
     可注入 audit_recorder），方便 runner/eval 零改动对比单 Agent vs 多 Agent。
     """
 
-    def __init__(self, audit_recorder=None, message_recorder=None, session_id: str | None = None):
+    def __init__(
+        self, audit_recorder=None, message_recorder=None, session_id: str | None = None
+    ):
         self.id = session_id or uuid4().hex
         # 真 recorder：给专家记叶子业务工具（落到 self.id 这个 session）
         self._leaf_recorder = audit_recorder or AuditRecorder()
@@ -236,14 +279,14 @@ class SupervisorAgent:
         _supervisor_schemas = [ASK_CUSTOMER_AGENT_SCHEMA, ASK_MERCHANT_AGENT_SCHEMA]
         _supervisor_impls = {
             "ask_customer_agent": self.ask_customer_agent,
-            "ask_merchant_agent": self.ask_merchant_agent
+            "ask_merchant_agent": self.ask_merchant_agent,
         }
         self._session = ChatSession(
             system_prompt=SUPERVISOR_PROMPT,
             audit_recorder=NoOpRecorder(),
             tool_schemas=_supervisor_schemas,
             tool_impls=_supervisor_impls,
-            session_id=self.id
+            session_id=self.id,
         )
 
     @property
@@ -258,17 +301,14 @@ class SupervisorAgent:
             audit_recorder=self._leaf_recorder,
             tool_schemas=CUSTOMER_TOOL_SCHEMAS,
             tool_impls=CUSTOMER_TOOL_IMPLS,
-            session_id=self.id
+            session_id=self.id,
         )
         response = customer_session.chat(query)
         self._message_recorder.record(
-            {
-                "session_id": self.id,
-                "messages": customer_session.messages
-            }
+            {"session_id": self.id, "messages": customer_session.messages}
         )
         return response
-    
+
     def ask_merchant_agent(self, query: str) -> str:
         print(f"running ask_merchant_agent({query})")
         merchant_session = ChatSession(
@@ -282,13 +322,9 @@ class SupervisorAgent:
         )
         response = merchant_session.chat(query)
         self._message_recorder.record(
-            {
-                "session_id": self.id,
-                "messages": merchant_session.messages
-            })
+            {"session_id": self.id, "messages": merchant_session.messages}
+        )
         return response
 
     def chat(self, user_input: str) -> str:
         return self._session.chat(user_input)
-        
-    

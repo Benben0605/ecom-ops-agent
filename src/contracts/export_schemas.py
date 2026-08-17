@@ -6,6 +6,7 @@ tests/test_contract_schemas.py 会钉住快照与 model 一致。
 
     uv run python -m src.contracts.export_schemas
 """
+
 import json
 from pathlib import Path
 

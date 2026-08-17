@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).parents[3]
 ANNOTATION_RELATIVE_PATH = Path("logs") / "l2_root_cause_annotations.jsonl"
@@ -171,10 +170,9 @@ def _normalize_annotation(record: dict[str, Any]) -> dict[str, Any] | None:
         variant=variant or None,
         run_index=run_index,
     )
-    updated_at = (
-        str(record.get("updated_at") or record.get("created_at") or "").strip()
-        or datetime.now().astimezone().isoformat(timespec="seconds")
-    )
+    updated_at = str(
+        record.get("updated_at") or record.get("created_at") or ""
+    ).strip() or datetime.now().astimezone().isoformat(timespec="seconds")
 
     normalized = {
         "issue_id": issue_id,
@@ -235,7 +233,9 @@ def load_latest_l2_annotations(root: Path | None = None) -> dict[str, dict[str, 
     return latest
 
 
-def save_l2_annotation(payload: dict[str, Any], root: Path | None = None) -> dict[str, Any]:
+def save_l2_annotation(
+    payload: dict[str, Any], root: Path | None = None
+) -> dict[str, Any]:
     timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
     record = {
         **payload,

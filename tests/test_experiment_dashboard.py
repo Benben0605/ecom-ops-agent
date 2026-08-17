@@ -1,8 +1,8 @@
 import hashlib
 import json
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 
 from src.dashboard.main import build_dashboard_data
 from src.eval.l2.annotations import build_l2_issue_id, save_l2_annotation
@@ -170,7 +170,10 @@ class ExperimentDashboardTest(unittest.TestCase):
             (2, "session_2", "analyze_ops", "全店运营概况"),
         ):
             run_dir = variant_dir / "trace" / f"run_{index}"
-            _write_json(run_dir / "run_map.json", [{"case_id": "case_a", "session_id": session_id}])
+            _write_json(
+                run_dir / "run_map.json",
+                [{"case_id": "case_a", "session_id": session_id}],
+            )
             _write_jsonl(
                 run_dir / "audit.jsonl",
                 [

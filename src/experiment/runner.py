@@ -19,28 +19,35 @@ variants：同一 Experiment 下的多套配置（name + config dict），harnes
     variants/<name>/eval/    (l1_metrics.json l1_case_result.json l2_* / retrieval_eval_result.json
                               / l2_fixtures_metrics.json l2_fixtures_case_result.json)
 """
-from dataclasses import dataclass, field
-from datetime import datetime
+
 import hashlib
 import json
 import subprocess
 import sys
+from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
 
 from src import config
 from src.agent import (
+    TOOLS as DEFAULT_TOOL_IMPLS,
+)
+from src.agent import (
     ChatSession,
     _system_prompt,
+)
+from src.agent import (
     tools as DEFAULT_TOOL_SCHEMAS,
-    TOOLS as DEFAULT_TOOL_IMPLS,
 )
 from src.eval.answer_runner import eval_answer_run
 from src.eval.judge import eval_judge
-from src.eval.l2.fixtures import N as L2_FIXTURES_N, fixture_case_index, run_fixtures
+from src.eval.l2.fixtures import N as L2_FIXTURES_N
+from src.eval.l2.fixtures import fixture_case_index, run_fixtures
 from src.eval.l2.judge import run_l2
-from src.eval.retrieval import run as run_retrieval, chunk_baseline
+from src.eval.retrieval import chunk_baseline
+from src.eval.retrieval import run as run_retrieval
 
 ROOT = Path(__file__).parents[2]
 EXPERIMENTS_ROOT = ROOT / "logs" / "experiments"
@@ -61,11 +68,19 @@ class Experiment:
     name: str
     track: str  # "agent" | "retrieval" | "l2_fixtures_judge"
     variants: list[Variant]
-    n: int = 1  # 每变体重复跑数；当前实现 n=1，>1 留后续（manifest 记录，供后续 CI 扩展）
-    case_filter: list[str] | None = None  # 只跑这组 case_id（冒烟验证省预算）；None=全集
+    n: int = (
+        1  # 每变体重复跑数；当前实现 n=1，>1 留后续（manifest 记录，供后续 CI 扩展）
+    )
+    case_filter: list[str] | None = (
+        None  # 只跑这组 case_id（冒烟验证省预算）；None=全集
+    )
     bucket_filter: list[str] | None = None  # 按桶选 case；与 case_filter 取并集
-    stages: tuple = VALID_STAGES  # 选择性执行：("run",) / ("l1","l2") / 任意组合，默认全跑
-    exp_id: str | None = None  # 复用已有实验目录（judge-only 时从它的 trace 取答案，不重跑 agent）
+    stages: tuple = (
+        VALID_STAGES  # 选择性执行：("run",) / ("l1","l2") / 任意组合，默认全跑
+    )
+    exp_id: str | None = (
+        None  # 复用已有实验目录（judge-only 时从它的 trace 取答案，不重跑 agent）
+    )
 
 
 def _case_index(track: str) -> list[tuple[str, str]]:
@@ -89,7 +104,9 @@ def _resolve_case_ids(exp: Experiment) -> list[str] | None:
         raise ValueError(f"case_filter 里有不存在的 case_id: {sorted(unknown)}")
     if exp.bucket_filter:
         if unknown := set(exp.bucket_filter) - all_buckets:
-            raise ValueError(f"bucket_filter 里有不存在的桶: {sorted(unknown)}（现有: {sorted(all_buckets)}）")
+            raise ValueError(
+                f"bucket_filter 里有不存在的桶: {sorted(unknown)}（现有: {sorted(all_buckets)}）"
+            )
         wanted = set(exp.bucket_filter)
         ids |= {cid for cid, b in index if b in wanted}
     return sorted(ids)
@@ -191,9 +208,19 @@ def _aggregate_l1(per_run: list[dict]) -> tuple[dict, dict]:
             "pass_rate": pass_runs / n,
             "hit_rate": (hit_runs / n) if positive else None,
             "misfire_rate": misfire_runs / n,
-            "runs": [{k: r[k] for k in
-                      ("called_tools", "missing_tools", "unexpected_tools", "is_hit", "is_misfire")}
-                     for r in runs],
+            "runs": [
+                {
+                    k: r[k]
+                    for k in (
+                        "called_tools",
+                        "missing_tools",
+                        "unexpected_tools",
+                        "is_hit",
+                        "is_misfire",
+                    )
+                }
+                for r in runs
+            ],
         }
     pos = [c for c in case_result.values() if c["spec_tool"]]
     metrics = {
@@ -201,8 +228,11 @@ def _aggregate_l1(per_run: list[dict]) -> tuple[dict, dict]:
         "positive_case_count": len(pos),
         "n": max((c["n"] for c in case_result.values()), default=0),
         "routing_accuracy": (sum(c["hit_rate"] for c in pos) / len(pos)) if pos else 0,
-        "misfire_rate": (sum(c["misfire_rate"] for c in case_result.values()) / len(case_result))
-                        if case_result else 0,
+        "misfire_rate": (
+            sum(c["misfire_rate"] for c in case_result.values()) / len(case_result)
+        )
+        if case_result
+        else 0,
     }
     return case_result, metrics
 
@@ -223,8 +253,10 @@ def _aggregate_l2(per_run: list[dict]) -> tuple[dict, dict]:
         hit_total = sum(r["score"]["hit_total"] for r in runs)
         faith_ok = sum(r["score"]["faith_ok"] for r in runs)
         faith_total = sum(r["score"]["faith_total"] for r in runs)
-        tot_hit_ok += hit_ok; tot_hit_total += hit_total
-        tot_faith_ok += faith_ok; tot_faith_total += faith_total
+        tot_hit_ok += hit_ok
+        tot_hit_total += hit_total
+        tot_faith_ok += faith_ok
+        tot_faith_total += faith_total
         case_result[cid] = {
             "case_id": cid,
             "bucket": runs[0]["bucket"],
@@ -233,16 +265,28 @@ def _aggregate_l2(per_run: list[dict]) -> tuple[dict, dict]:
             "pass_rate": pass_runs / n,
             "hit_rate": hit_ok / hit_total if hit_total else None,
             "faithfulness_rate": faith_ok / faith_total if faith_total else None,
-            "runs": [{"answer": r["answer"], "verdict": r["verdict"],
-                      "score": r["score"], "passed": _l2_passed(r)} for r in runs],
+            "runs": [
+                {
+                    "answer": r["answer"],
+                    "verdict": r["verdict"],
+                    "score": r["score"],
+                    "passed": _l2_passed(r),
+                }
+                for r in runs
+            ],
         }
     metrics = {
         "case_count": len(case_result),
         "n": max((c["n"] for c in case_result.values()), default=0),
-        "case_pass_rate": (sum(c["pass_rate"] for c in case_result.values()) / len(case_result))
-                          if case_result else None,
+        "case_pass_rate": (
+            sum(c["pass_rate"] for c in case_result.values()) / len(case_result)
+        )
+        if case_result
+        else None,
         "hit_rate": tot_hit_ok / tot_hit_total if tot_hit_total else None,
-        "faithfulness_rate": tot_faith_ok / tot_faith_total if tot_faith_total else None,
+        "faithfulness_rate": tot_faith_ok / tot_faith_total
+        if tot_faith_total
+        else None,
     }
     return case_result, metrics
 
@@ -270,8 +314,9 @@ def _filter_case_results(per_run: list[dict], case_ids: list[str] | None) -> lis
     return [{cid: r for cid, r in run.items() if cid in keep} for run in per_run]
 
 
-def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
-                case_ids: list[str] | None = None) -> Path:
+def run_variant(
+    exp: Experiment, variant: Variant, exp_dir: Path, case_ids: list[str] | None = None
+) -> Path:
     vdir = exp_dir / "variants" / variant.name
     trace_dir = vdir / "trace"
     eval_dir = vdir / "eval"
@@ -287,8 +332,11 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
         if "run" in stages:
             make_agent = _make_agent_factory(variant.config)
             for i in range(1, exp.n + 1):
-                eval_answer_run(make_agent=make_agent, run_dir=trace_dir / f"run_{i}",
-                                case_filter=case_ids)
+                eval_answer_run(
+                    make_agent=make_agent,
+                    run_dir=trace_dir / f"run_{i}",
+                    case_filter=case_ids,
+                )
 
         run_dirs = _existing_run_dirs(trace_dir)
         if ("l1" in stages or "l2" in stages) and not run_dirs:
@@ -299,7 +347,8 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
 
         if "l1" in stages:
             per_run_l1 = _filter_case_results(
-                [eval_judge(run_dir=rd) for rd in run_dirs], case_ids)
+                [eval_judge(run_dir=rd) for rd in run_dirs], case_ids
+            )
             l1_case, l1_metrics = _aggregate_l1(per_run_l1)
             _write(eval_dir / "l1_case_result.json", l1_case)
             _write(eval_dir / "l1_metrics.json", l1_metrics)
@@ -343,7 +392,11 @@ def _config_summary(cfg: dict) -> dict:
 
 
 def run_experiment(exp: Experiment) -> Path:
-    if exp.track == FIXTURES_TRACK and exp.exp_id and (exp.case_filter or exp.bucket_filter):
+    if (
+        exp.track == FIXTURES_TRACK
+        and exp.exp_id
+        and (exp.case_filter or exp.bucket_filter)
+    ):
         # 本轨的产物是整体覆盖写；复用 exp_id 做过滤跑会把其余 case 从结果里抹掉
         raise ValueError(
             f"{FIXTURES_TRACK} 轨不支持 exp_id 复用 + case/bucket 过滤同时使用——过滤跑请开新实验目录"
@@ -353,7 +406,9 @@ def run_experiment(exp: Experiment) -> Path:
         exp_id = exp.exp_id
         exp_dir = EXPERIMENTS_ROOT / exp_id
         if not exp_dir.exists():
-            raise FileNotFoundError(f"exp_id 不存在：{exp_dir}——复用模式必须指向已有实验")
+            raise FileNotFoundError(
+                f"exp_id 不存在：{exp_dir}——复用模式必须指向已有实验"
+            )
     else:
         exp_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{exp.name}"
         exp_dir = EXPERIMENTS_ROOT / exp_id
@@ -369,30 +424,40 @@ def run_experiment(exp: Experiment) -> Path:
         print(f">>> 跑变体 [{v.name}] ...")
         run_variant(exp, v, exp_dir, case_ids=case_ids)
 
-    old = json.loads((exp_dir / "manifest.json").read_text(encoding="utf-8")) \
-        if (exp_dir / "manifest.json").exists() else {}
+    old = (
+        json.loads((exp_dir / "manifest.json").read_text(encoding="utf-8"))
+        if (exp_dir / "manifest.json").exists()
+        else {}
+    )
     manifest = {
         "exp_id": exp_id,
         "name": exp.name,
         "track": exp.track,
-        "variants": [{"name": v.name, "config": _config_summary(v.config)} for v in exp.variants],
+        "variants": [
+            {"name": v.name, "config": _config_summary(v.config)} for v in exp.variants
+        ],
         "provenance": _provenance(exp),
         # 每次调用（含复用模式补阶段）追加一条，全历史可追溯
-        "stage_runs": old.get("stage_runs", []) + [{
-            "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "stages": stages,
-            "case_filter": exp.case_filter,
-            "bucket_filter": exp.bucket_filter,
-            "resolved_case_count": len(case_ids) if case_ids is not None else "all",
-            "n": exp.n,
-        }],
+        "stage_runs": old.get("stage_runs", [])
+        + [
+            {
+                "timestamp": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "stages": stages,
+                "case_filter": exp.case_filter,
+                "bucket_filter": exp.bucket_filter,
+                "resolved_case_count": len(case_ids) if case_ids is not None else "all",
+                "n": exp.n,
+            }
+        ],
     }
     _write(exp_dir / "manifest.json", manifest)
 
     names = [v.name for v in exp.variants]
     print(f"\n实验落盘：{exp_dir}")
     if len(names) >= 2:
-        print(f"对比：uv run python -m src.experiment.compare {exp_id} {names[0]} {names[1]}")
+        print(
+            f"对比：uv run python -m src.experiment.compare {exp_id} {names[0]} {names[1]}"
+        )
     return exp_dir
 
 
@@ -415,18 +480,42 @@ def _cli() -> Experiment:
     uv run python -m src.experiment.runner --name fx_smoke --track l2_fixtures_judge --cases case_072 --n 2
     """
     import argparse
-    p = argparse.ArgumentParser(description="实验 harness：选择性执行 run/l1/l2，case_id/bucket 过滤")
+
+    p = argparse.ArgumentParser(
+        description="实验 harness：选择性执行 run/l1/l2，case_id/bucket 过滤"
+    )
     p.add_argument("--name", required=True, help="实验名（进 exp_id）")
-    p.add_argument("--track", default="agent", choices=["agent", FIXTURES_TRACK],
-                   help=f"agent=评 agent；{FIXTURES_TRACK}=评 judge 本身"
-                        "（retrieval 轨 chunker 是 callable，走编码式）")
-    p.add_argument("--stages", default="run,l1,l2",
-                   help=f"逗号分隔：run,l1,l2 的任意组合（{FIXTURES_TRACK} 轨忽略）")
-    p.add_argument("--cases", default=None, help="逗号分隔 case_id，如 case_073,case_075")
-    p.add_argument("--buckets", default=None, help="逗号分隔桶名，如 role_flip,personalization；与 --cases 取并集")
-    p.add_argument("--exp-id", default=None, help="复用已有实验目录（judge-only 从其 trace 取答案）")
-    p.add_argument("--n", type=int, default=None,
-                   help=f"每 case 跑几次（agent 轨默认 1，仅 run 阶段用；{FIXTURES_TRACK} 轨默认 {L2_FIXTURES_N}）")
+    p.add_argument(
+        "--track",
+        default="agent",
+        choices=["agent", FIXTURES_TRACK],
+        help=f"agent=评 agent；{FIXTURES_TRACK}=评 judge 本身"
+        "（retrieval 轨 chunker 是 callable，走编码式）",
+    )
+    p.add_argument(
+        "--stages",
+        default="run,l1,l2",
+        help=f"逗号分隔：run,l1,l2 的任意组合（{FIXTURES_TRACK} 轨忽略）",
+    )
+    p.add_argument(
+        "--cases", default=None, help="逗号分隔 case_id，如 case_073,case_075"
+    )
+    p.add_argument(
+        "--buckets",
+        default=None,
+        help="逗号分隔桶名，如 role_flip,personalization；与 --cases 取并集",
+    )
+    p.add_argument(
+        "--exp-id",
+        default=None,
+        help="复用已有实验目录（judge-only 从其 trace 取答案）",
+    )
+    p.add_argument(
+        "--n",
+        type=int,
+        default=None,
+        help=f"每 case 跑几次（agent 轨默认 1，仅 run 阶段用；{FIXTURES_TRACK} 轨默认 {L2_FIXTURES_N}）",
+    )
     a = p.parse_args()
     fixtures_track = a.track == FIXTURES_TRACK
     return Experiment(
@@ -516,7 +605,7 @@ if __name__ == "__main__":
     #     n = 3,
     #     case_filter=["case_073", "case_074", "case_075", "case_076", "case_077",
     #                  "case_078", "case_079", "case_080", "case_081", "case_082"],
-    # )) 
+    # ))
 
     # ⑧ 增加 role-flip, personalization， 完整FACTUAL BUCKET 跑 l1/l2 judge
     # 新能力示例：bucket 过滤 + 全阶段（等价 CLI：--name phase3_two_buckets --buckets role_flip,personalization --n 3）
@@ -539,10 +628,12 @@ if __name__ == "__main__":
     # ))
 
     #  (10) 单跑case_078,看fixture-case_078-answer “看你之前还买过我们家的蓝牙“在最新的agent是否还会跑出来
-    run_experiment(Experiment(
-        name="case_078_fixture_answer",
-        track="agent",
-        variants=variants,
-        n=3,
-        case_filter=["case_078"],
-    ))
+    run_experiment(
+        Experiment(
+            name="case_078_fixture_answer",
+            track="agent",
+            variants=variants,
+            n=3,
+            case_filter=["case_078"],
+        )
+    )

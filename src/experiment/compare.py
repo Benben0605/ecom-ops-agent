@@ -6,6 +6,7 @@
 
 落 compare.json + 终端打对照表。前端按 (layer, metric, status) 筛 case_diff 即下钻。
 """
+
 import json
 import sys
 from pathlib import Path
@@ -22,7 +23,11 @@ def _delta(a_metrics: dict, b_metrics: dict, keys: list[str]) -> dict:
     out = {}
     for k in keys:
         a, b = a_metrics.get(k), b_metrics.get(k)
-        d = (b - a) if isinstance(a, (int, float)) and isinstance(b, (int, float)) else None
+        d = (
+            (b - a)
+            if isinstance(a, (int, float)) and isinstance(b, (int, float))
+            else None
+        )
         out[k] = {"a": a, "b": b, "delta": d}
     return out
 
@@ -39,8 +44,14 @@ def _status(a, b) -> str:
 def _compare_agent(a_dir: Path, b_dir: Path) -> tuple[dict, list[dict]]:
     a_l1m, b_l1m = _load(a_dir / "l1_metrics.json"), _load(b_dir / "l1_metrics.json")
     a_l2m, b_l2m = _load(a_dir / "l2_metrics.json"), _load(b_dir / "l2_metrics.json")
-    a_l1c, b_l1c = _load(a_dir / "l1_case_result.json"), _load(b_dir / "l1_case_result.json")
-    a_l2c, b_l2c = _load(a_dir / "l2_case_result.json"), _load(b_dir / "l2_case_result.json")
+    a_l1c, b_l1c = (
+        _load(a_dir / "l1_case_result.json"),
+        _load(b_dir / "l1_case_result.json"),
+    )
+    a_l2c, b_l2c = (
+        _load(a_dir / "l2_case_result.json"),
+        _load(b_dir / "l2_case_result.json"),
+    )
 
     headline = {
         "L1": _delta(a_l1m, b_l1m, ["routing_accuracy", "misfire_rate"]),
@@ -79,13 +90,19 @@ def _compare_retrieval(a_dir: Path, b_dir: Path) -> tuple[dict, list[dict]]:
         # 以 R@3 命中与否作为 per-query 翻转判定
         pa = (ra["R@3"] > 0) if ra and ra.get("R@3") is not None else None
         pb = (rb["R@3"] > 0) if rb and rb.get("R@3") is not None else None
-        case_diff.append({
-            "case_id": qid,
-            "bucket": (ra or rb).get("bucket"),
-            "RAG": {"a": pa, "b": pb, "status": _status(pa, pb),
+        case_diff.append(
+            {
+                "case_id": qid,
+                "bucket": (ra or rb).get("bucket"),
+                "RAG": {
+                    "a": pa,
+                    "b": pb,
+                    "status": _status(pa, pb),
                     "a_mrr": ra.get("MRR") if ra else None,
-                    "b_mrr": rb.get("MRR") if rb else None},
-        })
+                    "b_mrr": rb.get("MRR") if rb else None,
+                },
+            }
+        )
     return headline, case_diff
 
 
@@ -112,7 +129,8 @@ def compare(exp_id: str, variant_a: str, variant_b: str) -> dict:
         "case_diff": case_diff,
     }
     (exp_dir / "compare.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return out
 
 
@@ -126,32 +144,59 @@ def compare_with_detail(exp_id: str, variant_a: str, variant_b: str) -> dict:
     detail: dict[str, dict] = {}
 
     if out["track"] == "agent":
-        a_l1c, b_l1c = _load(a_dir / "l1_case_result.json"), _load(b_dir / "l1_case_result.json")
-        a_l2c, b_l2c = _load(a_dir / "l2_case_result.json"), _load(b_dir / "l2_case_result.json")
+        a_l1c, b_l1c = (
+            _load(a_dir / "l1_case_result.json"),
+            _load(b_dir / "l1_case_result.json"),
+        )
+        a_l2c, b_l2c = (
+            _load(a_dir / "l2_case_result.json"),
+            _load(b_dir / "l2_case_result.json"),
+        )
 
         def _l1_detail(r):
             if not r:
                 return None
-            return {k: r.get(k) for k in
-                    ("spec_tool", "n", "pass_rate", "hit_rate", "misfire_rate", "runs")}
+            return {
+                k: r.get(k)
+                for k in (
+                    "spec_tool",
+                    "n",
+                    "pass_rate",
+                    "hit_rate",
+                    "misfire_rate",
+                    "runs",
+                )
+            }
 
         def _l2_detail(r):
             if not r:
                 return None
-            return {k: r.get(k) for k in
-                    ("n", "pass_rate", "hit_rate", "faithfulness_rate", "runs")}
+            return {
+                k: r.get(k)
+                for k in ("n", "pass_rate", "hit_rate", "faithfulness_rate", "runs")
+            }
 
         for row in out["case_diff"]:
             cid = row["case_id"]
             src = a_l2c.get(cid) or b_l2c.get(cid) or {}
             detail[cid] = {
                 "question": src.get("question", ""),
-                "a": {"l1": _l1_detail(a_l1c.get(cid)), "l2": _l2_detail(a_l2c.get(cid))},
-                "b": {"l1": _l1_detail(b_l1c.get(cid)), "l2": _l2_detail(b_l2c.get(cid))},
+                "a": {
+                    "l1": _l1_detail(a_l1c.get(cid)),
+                    "l2": _l2_detail(a_l2c.get(cid)),
+                },
+                "b": {
+                    "l1": _l1_detail(b_l1c.get(cid)),
+                    "l2": _l2_detail(b_l2c.get(cid)),
+                },
             }
     elif out["track"] == "retrieval":
-        a = {r["id"]: r for r in _load(a_dir / "retrieval_eval_result.json")["per_query"]}
-        b = {r["id"]: r for r in _load(b_dir / "retrieval_eval_result.json")["per_query"]}
+        a = {
+            r["id"]: r for r in _load(a_dir / "retrieval_eval_result.json")["per_query"]
+        }
+        b = {
+            r["id"]: r for r in _load(b_dir / "retrieval_eval_result.json")["per_query"]
+        }
         for row in out["case_diff"]:
             cid = row["case_id"]
             detail[cid] = {"question": "", "a": a.get(cid), "b": b.get(cid)}
@@ -161,22 +206,36 @@ def compare_with_detail(exp_id: str, variant_a: str, variant_b: str) -> dict:
 
 
 def _print(out: dict) -> None:
-    print(f"\n=========== A/B：{out['variant_a']} vs {out['variant_b']}  (track={out['track']}) ===========")
+    print(
+        f"\n=========== A/B：{out['variant_a']} vs {out['variant_b']}  (track={out['track']}) ==========="
+    )
     print(f"{'层/指标':<24}{'A':>10}{'B':>10}{'Δ':>10}")
     for layer, metrics in out["headline_delta"].items():
         for k, d in metrics.items():
-            fa = f"{d['a']*100:.2f}%" if isinstance(d["a"], (int, float)) else "-"
-            fb = f"{d['b']*100:.2f}%" if isinstance(d["b"], (int, float)) else "-"
-            fd = f"{d['delta']*100:+.2f}%" if isinstance(d["delta"], (int, float)) else "-"
-            print(f"{layer+'·'+k:<24}{fa:>10}{fb:>10}{fd:>10}")
+            fa = f"{d['a'] * 100:.2f}%" if isinstance(d["a"], (int, float)) else "-"
+            fb = f"{d['b'] * 100:.2f}%" if isinstance(d["b"], (int, float)) else "-"
+            fd = (
+                f"{d['delta'] * 100:+.2f}%"
+                if isinstance(d["delta"], (int, float))
+                else "-"
+            )
+            print(f"{layer + '·' + k:<24}{fa:>10}{fb:>10}{fd:>10}")
 
-    flips = [c for c in out["case_diff"]
-             for layer in ("L1", "L2", "RAG") if c.get(layer, {}).get("status") in ("improved", "regressed")]
-    print(f"\n翻转样本（improved/regressed）：{len(flips)} 处，详见 compare.json 的 case_diff")
+    flips = [
+        c
+        for c in out["case_diff"]
+        for layer in ("L1", "L2", "RAG")
+        if c.get(layer, {}).get("status") in ("improved", "regressed")
+    ]
+    print(
+        f"\n翻转样本（improved/regressed）：{len(flips)} 处，详见 compare.json 的 case_diff"
+    )
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("用法：uv run python -m src.experiment.compare <exp_id> <variant_a> <variant_b>")
+        print(
+            "用法：uv run python -m src.experiment.compare <exp_id> <variant_a> <variant_b>"
+        )
         sys.exit(1)
     _print(compare(sys.argv[1], sys.argv[2], sys.argv[3]))

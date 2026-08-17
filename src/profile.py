@@ -2,7 +2,9 @@ import json
 from collections import Counter
 from pathlib import Path
 
-_PROFILES = json.loads((Path(__file__).parents[1] / "data" / "profiles.json").read_text())
+_PROFILES = json.loads(
+    (Path(__file__).parents[1] / "data" / "profiles.json").read_text()
+)
 
 
 def _budget_band(avg: float) -> str:
@@ -38,6 +40,7 @@ def get_preferences(user_id: str) -> dict | None:
     if profile is None:
         return None
     return derive_preferences(profile["order_history"])
+
 
 if __name__ == "__main__":
     print(json.dumps(get_preferences("u_beauty"), ensure_ascii=False, indent=2))

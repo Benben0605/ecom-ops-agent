@@ -1,6 +1,6 @@
+import json
 from collections import defaultdict
 from datetime import datetime
-import json
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +11,6 @@ from src.eval.l2.annotations import (
     build_l2_issue_id,
     load_latest_l2_annotations,
 )
-
 
 ROOT = Path(__file__).parents[3]
 
@@ -62,7 +61,9 @@ def _finalize_stats(stats: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _source_context(root: Path) -> tuple[dict[str, dict[str, Any]], dict[str, list[Any]]]:
+def _source_context(
+    root: Path,
+) -> tuple[dict[str, dict[str, Any]], dict[str, list[Any]]]:
     """Load source data used to backfill older L2 result files.
 
     New result files persist the complete five-part input. Older files only contain
@@ -154,9 +155,7 @@ def build_l2_dashboard_data(
             faithfulness_axis.append(axis_item)
 
         hit_ok = sum(item.get("verdict") == "hit" for item in hit_axis)
-        faith_ok = sum(
-            item.get("verdict") == "supported" for item in faithfulness_axis
-        )
+        faith_ok = sum(item.get("verdict") == "supported" for item in faithfulness_axis)
         miss_count = sum(item.get("verdict") == "miss" for item in hit_axis)
         unsupported_count = sum(
             item.get("verdict") == "unsupported" for item in faithfulness_axis

@@ -8,14 +8,14 @@ RECOMMEND_PRODUCT_SCHEMA = {
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "商品类目，如：美妆护肤、家居日用、数码、运动户外、食品。类目不确定时可不传，直接调用即可，系统会处理"
+                    "description": "商品类目，如：美妆护肤、家居日用、数码、运动户外、食品。类目不确定时可不传，直接调用即可，系统会处理",
                 },
                 "budget": {
                     "type": "number",
-                    "description": "预算上限（元）。用户没提就不传"
-                }
+                    "description": "预算上限（元）。用户没提就不传",
+                },
             },
-            "required": []
-        }
-    }
+            "required": [],
+        },
+    },
 }

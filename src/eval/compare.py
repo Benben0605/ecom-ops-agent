@@ -1,15 +1,20 @@
 """单 Agent vs 多 Agent 对比 harness（架构选型四问·④数据裁决）。
 跑两套 agent 各打全套评估集，judge 出 headline + 分桶 misfire，并排对照。"""
+
 from collections import defaultdict
-import json
 from pathlib import Path
 
 from src.eval.answer_runner import eval_answer_run, multi_agent_run
 from src.eval.judge import eval_judge, summarize_results
 
 LOGS = Path(__file__).parents[2] / "logs"
-_TRANSIENT = ["audit.jsonl", "run_map.json", "session_messages.jsonl",
-              "case_eval_result.json", "eval_metrics.json"]
+_TRANSIENT = [
+    "audit.jsonl",
+    "run_map.json",
+    "session_messages.jsonl",
+    "case_eval_result.json",
+    "eval_metrics.json",
+]
 
 
 def _clear():
@@ -43,10 +48,15 @@ if __name__ == "__main__":
 
     print("\n================ 单 Agent vs 多 Agent ================")
     print(f"{'指标':<16}{'单Agent':>12}{'多Agent':>12}")
-    print(f"{'路由准确率':<16}{single_m['routing_accuracy']*100:>11.2f}%{multi_m['routing_accuracy']*100:>11.2f}%")
-    print(f"{'误触发率':<16}{single_m['misfire_rate']*100:>11.2f}%{multi_m['misfire_rate']*100:>11.2f}%")
+    print(
+        f"{'路由准确率':<16}{single_m['routing_accuracy'] * 100:>11.2f}%{multi_m['routing_accuracy'] * 100:>11.2f}%"
+    )
+    print(
+        f"{'误触发率':<16}{single_m['misfire_rate'] * 100:>11.2f}%{multi_m['misfire_rate'] * 100:>11.2f}%"
+    )
 
     print(f"\n{'bucket misfire':<16}{'单Agent':>12}{'多Agent':>12}")
     for b in sorted(set(single_b) | set(multi_b)):
-        s = single_b.get(b, [0, 0]); m = multi_b.get(b, [0, 0])
+        s = single_b.get(b, [0, 0])
+        m = multi_b.get(b, [0, 0])
         print(f"{b:<16}{f'{s[1]}/{s[0]}':>12}{f'{m[1]}/{m[0]}':>12}")
