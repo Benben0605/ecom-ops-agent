@@ -5,7 +5,7 @@ import json
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.contracts import load_artifact
 from src.contracts.l2_fixtures import (
@@ -401,19 +401,22 @@ def build_l1_experiment_dashboard_data(
                 }
             )
 
+        raw_hit_rate = raw.get("hit_rate")
         hit_rate = (
-            raw.get("hit_rate")
-            if isinstance(raw.get("hit_rate"), (int, float))
+            float(raw_hit_rate)
+            if isinstance(raw_hit_rate, (int, float))
             else (_rate(hit_runs, len(raw_runs)) if positive else None)
         )
+        raw_misfire_rate = raw.get("misfire_rate")
         misfire_rate = (
-            raw.get("misfire_rate")
-            if isinstance(raw.get("misfire_rate"), (int, float))
+            float(raw_misfire_rate)
+            if isinstance(raw_misfire_rate, (int, float))
             else _rate(misfire_runs, len(raw_runs))
         )
+        raw_pass_rate = raw.get("pass_rate")
         pass_rate = (
-            raw.get("pass_rate")
-            if isinstance(raw.get("pass_rate"), (int, float))
+            float(raw_pass_rate)
+            if isinstance(raw_pass_rate, (int, float))
             else _rate(pass_runs, len(raw_runs))
         )
         route_error = positive and (hit_rate is None or hit_rate < 1)
@@ -564,7 +567,8 @@ def _finalize_l2_stats(stats: dict[str, float]) -> dict[str, Any]:
 def _l2_passed(raw: dict[str, Any]) -> bool:
     if isinstance(raw.get("passed"), bool):
         return bool(raw["passed"])
-    verdict = raw.get("verdict") if isinstance(raw.get("verdict"), dict) else {}
+    raw_verdict = raw.get("verdict")
+    verdict = cast(dict[str, Any], raw_verdict) if isinstance(raw_verdict, dict) else {}
     misses = any(
         item.get("verdict") == "miss"
         for item in verdict.get("hit_axis", [])
@@ -712,7 +716,12 @@ def build_l2_experiment_dashboard_data(
         for position, run in enumerate(raw_runs):
             run_index = position + 1
             trace = _trace_for_run(traces, run_index, position)
-            verdict = run.get("verdict") if isinstance(run.get("verdict"), dict) else {}
+            raw_verdict = run.get("verdict")
+            verdict = (
+                cast(dict[str, Any], raw_verdict)
+                if isinstance(raw_verdict, dict)
+                else {}
+            )
             score = run.get("score")
             if not isinstance(score, dict):
                 score = _score_from_verdict(verdict)
@@ -777,9 +786,10 @@ def build_l2_experiment_dashboard_data(
             )
 
         n = int(raw.get("n") or len(raw_runs))
+        raw_pass_rate = raw.get("pass_rate")
         pass_rate = (
-            raw.get("pass_rate")
-            if isinstance(raw.get("pass_rate"), (int, float))
+            float(raw_pass_rate)
+            if isinstance(raw_pass_rate, (int, float))
             else _rate(pass_runs, len(raw_runs))
         )
         hit_rate = _nullable_rate(hit_ok, hit_total)

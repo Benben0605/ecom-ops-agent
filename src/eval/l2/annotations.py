@@ -174,7 +174,7 @@ def _normalize_annotation(record: dict[str, Any]) -> dict[str, Any] | None:
         record.get("updated_at") or record.get("created_at") or ""
     ).strip() or datetime.now().astimezone().isoformat(timespec="seconds")
 
-    normalized = {
+    normalized: dict[str, Any] = {
         "issue_id": issue_id,
         "level": "L2",
         "axis": "faithfulness",

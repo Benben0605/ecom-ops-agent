@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 import chromadb
+from chromadb.api.types import PyEmbedding
 from openai import OpenAI
 
 from src import config
@@ -38,8 +39,8 @@ GRADER_PROMPT = """你是检索相关性裁判。给你用户问题和若干已�
 只输出 JSON：{"verdicts": [{"idx": 0, "relevant": true/false, "reason": "一句话"}, ...]}（idx 对应片段编号，逐个判全）"""
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
-    out: list[list[float]] = []
+def _embed(texts: list[str]) -> list[PyEmbedding]:
+    out: list[PyEmbedding] = []
     for i in range(0, len(texts), 10):  # 通义 batch 上限保守取 10
         r = embed_client.embeddings.create(
             model=config.EMBED_MODEL, input=texts[i : i + 10]
@@ -88,10 +89,10 @@ def _grade_chunks(query: str, passages: list[str]) -> list[dict]:
             {"role": "user", "content": payload},
         ],
     )
-    by_idx = {
-        d["idx"]: d
-        for d in json.loads(r.choices[0].message.content).get("verdicts", [])
-    }
+    content = r.choices[0].message.content
+    if content is None:
+        raise ValueError("检索相关性裁判返回了空响应")
+    by_idx = {d["idx"]: d for d in json.loads(content).get("verdicts", [])}
     return [
         by_idx.get(i, {"relevant": True, "reason": ""}) for i in range(len(passages))
     ]
@@ -110,7 +111,12 @@ def run(query: str, top_k: int | None = None) -> str:
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
-    passages = result["documents"][0]
+    documents = result["documents"]
+    metadatas = result["metadatas"]
+    distances = result["distances"]
+    if not documents or not metadatas or not distances:
+        return ABSTAIN
+    passages = documents[0]
     verdicts = (
         _grade_chunks(query, passages)
         if GRADER_ENABLED
@@ -124,7 +130,7 @@ def run(query: str, top_k: int | None = None) -> str:
             "relevant": v["relevant"],
             "reason": v["reason"],
         }
-        for m, d, v in zip(result["metadatas"][0], result["distances"][0], verdicts)
+        for m, d, v in zip(metadatas[0], distances[0], verdicts)
     ]
     TRACE.append(
         {

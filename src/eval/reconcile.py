@@ -44,7 +44,9 @@ def _load_eval(exp_id: str, variant: str) -> tuple[dict, dict]:
     return l1, l2
 
 
-def _current_reds(l1: dict, l2: dict) -> tuple[set[tuple[str, str]], set[str]]:
+def _current_reds(
+    l1: dict, l2: dict
+) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     """返回（红项集合 {(case_id, axis)}, 本次覆盖到的 (case_id, axis) 全集）。
     把两层结果统一归一化成 (case_id, axis) 键，axis 三选一：
 

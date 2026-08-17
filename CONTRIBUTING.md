@@ -26,6 +26,7 @@
 
 - 只先运行受影响边界所需的最小验证；合并前补齐本次变更要求的确定性检查。
 - Python lint 与格式检查：`make lint`。
+- Python 静态类型检查：`make typecheck`。
 - Python 确定性测试：`make test`。
 - 前端改动至少运行：`make frontend-build`。涉及交互、响应式或视觉表现时，还须在浏览器检查相关状态；构建成功不替代可访问性和交互验证。
 - 合并前完整确定性质量门禁：`make check`。

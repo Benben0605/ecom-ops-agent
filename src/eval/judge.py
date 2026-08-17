@@ -42,7 +42,7 @@ def _counter_diff(left: Counter, right: Counter) -> list[str]:
     return diff
 
 
-def summarize_results(case_eval_result: dict[str, dict]) -> dict:
+def summarize_results(case_eval_result: dict[str, dict[str, object]]) -> dict:
     results = list(case_eval_result.values())
     pos_result = [v for v in results if v["spec_tool"]]
     route_hit_count = len([r for r in pos_result if r["is_hit"]])
@@ -60,12 +60,12 @@ def summarize_results(case_eval_result: dict[str, dict]) -> dict:
     }
 
 
-def eval_judge(run_dir: Path | None = None) -> dict[str, dict]:
+def eval_judge(run_dir: Path | None = None) -> dict[str, dict[str, object]]:
     run_map, cases, audit_lines = load(run_dir)
 
     # 1）按 case_id 归集这个 case 实际调用的工具
     #   只认 run_map 中的 session_id。 case_id -> session_id -> 累加 tool_name
-    called: dict[list] = {}
+    called: dict[str, list[str]] = {}
     for r in run_map:
         case_id = r["case_id"]
         session_id = r["session_id"]
@@ -76,7 +76,7 @@ def eval_judge(run_dir: Path | None = None) -> dict[str, dict]:
         ]
         called[case_id] = audit_called
 
-    case_eval_result: dict[str, EvalResult] = {}
+    case_eval_result: dict[str, dict[str, object]] = {}
 
     for c in cases:
         case_id = c["id"]

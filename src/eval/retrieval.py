@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import chromadb
+from chromadb.api.types import PyEmbedding
 from openai import OpenAI
 
 from src import config
@@ -31,9 +32,9 @@ KS = (1, 3, 5)  # 报多个 k，给 top_k EXP-3 看曲线
 embed_client = OpenAI(api_key=config.EMBED_API_KEY, base_url=config.EMBED_BASE_URL)
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
+def _embed(texts: list[str]) -> list[PyEmbedding]:
     # 通义 batch 上限保守取 10
-    out: list[list[float]] = []
+    out: list[PyEmbedding] = []
     for i in range(0, len(texts), 10):
         r = embed_client.embeddings.create(
             model=config.EMBED_MODEL, input=texts[i : i + 10]
@@ -85,7 +86,7 @@ class Retrieved:
     distance: float
 
 
-def retrieve(coll, query_emb: list[float], top_k: int) -> list[Retrieved]:
+def retrieve(coll, query_emb: PyEmbedding, top_k: int) -> list[Retrieved]:
     r = coll.query(
         query_embeddings=[query_emb],
         n_results=top_k,

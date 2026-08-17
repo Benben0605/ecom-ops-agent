@@ -2,7 +2,7 @@ import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.dashboard.experiment_adapter import build_l2_experiment_dashboard_data
 from src.eval.l2.annotations import (
@@ -134,7 +134,10 @@ def build_l2_dashboard_data(
             continue
 
         source_case = cases_by_id.get(case_id, {})
-        verdict = raw.get("verdict") if isinstance(raw.get("verdict"), dict) else {}
+        raw_verdict = raw.get("verdict")
+        verdict = (
+            cast(dict[str, Any], raw_verdict) if isinstance(raw_verdict, dict) else {}
+        )
         hit_axis = [
             item for item in verdict.get("hit_axis", []) if isinstance(item, dict)
         ]

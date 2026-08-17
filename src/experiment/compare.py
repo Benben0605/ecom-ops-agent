@@ -62,7 +62,8 @@ def _compare_agent(a_dir: Path, b_dir: Path) -> tuple[dict, list[dict]]:
     case_diff = []
     for cid in sorted(set(a_l1c) | set(b_l1c)):
         ra, rb = a_l1c.get(cid), b_l1c.get(cid)
-        row = {"case_id": cid, "bucket": (ra or rb).get("bucket")}
+        source = ra or rb or {}
+        row = {"case_id": cid, "bucket": source.get("bucket")}
         la = ra.get("pass_rate") if ra else None
         lb = rb.get("pass_rate") if rb else None
         row["L1"] = {"a": la, "b": lb, "status": _status(la, lb)}
@@ -87,13 +88,14 @@ def _compare_retrieval(a_dir: Path, b_dir: Path) -> tuple[dict, list[dict]]:
     case_diff = []
     for qid in sorted(set(a_q) | set(b_q)):
         ra, rb = a_q.get(qid), b_q.get(qid)
+        source = ra or rb or {}
         # 以 R@3 命中与否作为 per-query 翻转判定
         pa = (ra["R@3"] > 0) if ra and ra.get("R@3") is not None else None
         pb = (rb["R@3"] > 0) if rb and rb.get("R@3") is not None else None
         case_diff.append(
             {
                 "case_id": qid,
-                "bucket": (ra or rb).get("bucket"),
+                "bucket": source.get("bucket"),
                 "RAG": {
                     "a": pa,
                     "b": pb,

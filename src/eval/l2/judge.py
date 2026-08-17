@@ -160,7 +160,7 @@ def build_user_payload(item: dict) -> str:
 
 
 def judge_one(item: dict, _max_retries: int = 3) -> dict:
-    last_err = None
+    last_err: Exception | None = None
     for attempt in range(_max_retries):
         try:
             resp = client.chat.completions.create(
@@ -173,10 +173,14 @@ def judge_one(item: dict, _max_retries: int = 3) -> dict:
                 temperature=0,
                 timeout=180,  # 单次挂死防护：慢端点下别让一次请求无限阻塞
             )
-            return json.loads(resp.choices[0].message.content)
+            content = resp.choices[0].message.content
+            if content is None:
+                raise ValueError("L2 judge 返回了空响应")
+            return json.loads(content)
         except Exception as e:  # 超时/网络/JSON 解析失败都重试
             last_err = e
             time.sleep(2 * (attempt + 1))
+    assert last_err is not None
     raise last_err
 
 

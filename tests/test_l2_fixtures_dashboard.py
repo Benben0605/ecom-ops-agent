@@ -146,6 +146,9 @@ class RunFixturesTest(unittest.TestCase):
         self.assertEqual(metrics.red_anchor_count, 2)
         self.assertEqual(metrics.green_anchor_count, 2)
         self.assertEqual(metrics.anchor_pass_rate, 0.5)
+        assert metrics.red_anchor_recall is not None
+        assert metrics.green_anchor_fp_rate is not None
+        assert metrics.extract_rate is not None
         self.assertAlmostEqual(metrics.red_anchor_recall, 4 / 6)
         self.assertAlmostEqual(metrics.green_anchor_fp_rate, 1 / 6)
         self.assertAlmostEqual(metrics.extract_rate, 1 - 5 / 12)

@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from src.agent import ChatSession
-from src.audit import NoOpRecorder
+from src.audit import NoOpRecorder, ToolAudit
 from src.tools import kb_search
 
 ROOT = Path(__file__).parents[1]
@@ -27,11 +27,11 @@ def kb_cases() -> list[dict]:
 
 
 class _Cap(NoOpRecorder):
-    def __init__(self):
-        self.calls = []
+    def __init__(self) -> None:
+        self.calls: list[str] = []
 
-    def record(self, a):
-        self.calls.append(a.tool_name)
+    def record(self, tool_audit: ToolAudit) -> None:
+        self.calls.append(tool_audit.tool_name)
 
 
 def observe() -> list[dict]:

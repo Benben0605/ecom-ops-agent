@@ -1,11 +1,20 @@
 import json
 import time
+from collections.abc import Callable
+from typing import Any, cast
 from uuid import uuid4
 
 from openai import OpenAI
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionToolUnionParam
 
 from src import config
-from src.audit import AuditRecorder, NoOpRecorder, ToolAudit
+from src.audit import (
+    AuditRecorder,
+    NoOpRecorder,
+    SessionMessageRecorder,
+    ToolAudit,
+    ToolAuditRecorder,
+)
 from src.schemas.analyze_ops_schema import ANALYZE_OPS_SCHEMA
 from src.schemas.escalate_to_human_schema import ESCALATE_TO_HUMAN_SCHEMA
 from src.schemas.kb_search_schema import KB_SEARCH_SCHEMA
@@ -63,13 +72,13 @@ class ChatSession:
     def __init__(
         self,
         system_prompt: str = _system_prompt,
-        audit_recorder=None,
-        tool_schemas: list | None = None,
-        tool_impls: dict | None = None,
+        audit_recorder: ToolAuditRecorder | None = None,
+        tool_schemas: list[dict[str, Any]] | None = None,
+        tool_impls: dict[str, Callable[..., str]] | None = None,
         session_id: str | None = None,
         model: str = config.MODEL,
-        user_context: dict | None = None,
-    ):
+        user_context: dict[str, str] | None = None,
+    ) -> None:
         self.id = session_id or uuid4().hex
         self.model = (
             model  # 主推理模型，实验 harness 可按变体换；压缩摘要仍走 config.MODEL
@@ -81,7 +90,9 @@ class ChatSession:
         self.role = (user_context or {}).get("role")
         if self.role:
             system_prompt = system_prompt + _ROLE_PROMPTS[self.role] + _AUDIENCE_GATE
-        self.messages = [{"role": "system", "content": system_prompt}]
+        self.messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt}
+        ]
         self.audit_recorder = audit_recorder or AuditRecorder()
         # 默认全工具（单 Agent 不变）；专家 Agent 传子集
         self.tool_schemas = tool_schemas if tool_schemas is not None else tools
@@ -96,7 +107,9 @@ class ChatSession:
         self.messages.append({"role": "user", "content": user_input})
         while True:
             r = client.chat.completions.create(
-                model=self.model, messages=self.messages, tools=self.tool_schemas
+                model=self.model,
+                messages=cast(list[ChatCompletionMessageParam], self.messages),
+                tools=cast(list[ChatCompletionToolUnionParam], self.tool_schemas),
             )
             assistant_message = r.choices[0].message
             tool_calls = assistant_message.tool_calls
@@ -105,12 +118,12 @@ class ChatSession:
                 self.messages.append(
                     {
                         "role": assistant_message.role,
-                        "content": assistant_message.content,
+                        "content": assistant_message.content or "",
                     }
                 )
-                prompt_tokens = r.usage.prompt_tokens
+                prompt_tokens = r.usage.prompt_tokens if r.usage else 0
                 self._maybe_compress(prompt_tokens)
-                return assistant_message.content
+                return assistant_message.content or ""
 
             tool_calls_dicts = [tc.model_dump() for tc in tool_calls]
             self.messages.append(
@@ -121,6 +134,8 @@ class ChatSession:
                 }
             )
             for tool_call in tool_calls:
+                if tool_call.type != "function":
+                    raise ValueError(f"不支持的工具调用类型：{tool_call.type}")
                 func_name = tool_call.function.name
                 start = time.perf_counter()
                 try:
@@ -157,7 +172,7 @@ class ChatSession:
                     {"role": "tool", "tool_call_id": tool_call.id, "content": result}
                 )
 
-    def _maybe_compress(self, prompt_tokens: int):
+    def _maybe_compress(self, prompt_tokens: int) -> None:
         """超过阈值时把早期历史摘要成一条 system 消息，保留最近 lately_round 轮 user 之后的全部消息。
 
         切点取 user_idx[-lately_round]，确保 assistant + tool 配对不被截断
@@ -182,7 +197,7 @@ class ChatSession:
             model=config.MODEL,
             messages=[{"role": "user", "content": summary_prompt}],
         )
-        summary = s.choices[0].message.content
+        summary = s.choices[0].message.content or ""
 
         self.messages = [
             self.messages[0],
@@ -264,8 +279,11 @@ class SupervisorAgent:
     """
 
     def __init__(
-        self, audit_recorder=None, message_recorder=None, session_id: str | None = None
-    ):
+        self,
+        audit_recorder: ToolAuditRecorder | None = None,
+        message_recorder: SessionMessageRecorder | None = None,
+        session_id: str | None = None,
+    ) -> None:
         self.id = session_id or uuid4().hex
         # 真 recorder：给专家记叶子业务工具（落到 self.id 这个 session）
         self._leaf_recorder = audit_recorder or AuditRecorder()
@@ -290,7 +308,7 @@ class SupervisorAgent:
         )
 
     @property
-    def messages(self):
+    def messages(self) -> list[dict[str, Any]]:
         # 返回 supervisor 那条会话的 messages（self._session.messages）
         return self._session.messages
 
@@ -304,9 +322,10 @@ class SupervisorAgent:
             session_id=self.id,
         )
         response = customer_session.chat(query)
-        self._message_recorder.record(
-            {"session_id": self.id, "messages": customer_session.messages}
-        )
+        if self._message_recorder is not None:
+            self._message_recorder.record(
+                {"session_id": self.id, "messages": customer_session.messages}
+            )
         return response
 
     def ask_merchant_agent(self, query: str) -> str:
@@ -321,9 +340,10 @@ class SupervisorAgent:
             user_context={"role": "merchant"},
         )
         response = merchant_session.chat(query)
-        self._message_recorder.record(
-            {"session_id": self.id, "messages": merchant_session.messages}
-        )
+        if self._message_recorder is not None:
+            self._message_recorder.record(
+                {"session_id": self.id, "messages": merchant_session.messages}
+            )
         return response
 
     def chat(self, user_input: str) -> str:

@@ -52,6 +52,7 @@
 ## Verification
 
 - Python lint 与格式检查：`make lint`
+- Python 静态类型检查：`make typecheck`
 - Python 确定性测试：`make test`
 - 前端类型检查与构建：`make frontend-build`
 - 合并前完整确定性质量门禁：`make check`
