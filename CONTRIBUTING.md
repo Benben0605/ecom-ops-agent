@@ -2,6 +2,34 @@
 
 本仓库围绕「评估驱动」开发：每次改动先立一个**可证伪的实验假设**，跑评估、用**数据裁决**，而不是凭感觉改。
 
+## 工程约定
+
+- 当前系统架构及能力状态以 [`docs/architecture.md`](./docs/architecture.md) 为准。
+- Python、React/TypeScript、错误处理、异步边界和验证要求见
+  [`docs/development/coding-standards.md`](./docs/development/coding-standards.md)。
+- 修改 `frontend/**` 前还必须阅读 [`frontend/AGENTS.md`](./frontend/AGENTS.md)；其中规定了前端的
+  可访问性、交互、性能、文案和视觉验证要求。
+- 规格描述意图，代码描述现状，测试与实验提供证据；三者冲突时先定位差异，不把规划中的能力描述为可用。
+
+## 修改前与实现时的要求
+
+1. 先定位相关规格、实现、调用方、数据契约与测试，说明发现的规格/实现差异。
+2. 将改动收敛到一个可证伪假设或明确契约缺口；不得借机重写无关模块或增加没有业务问题、测试隔离需求或评估证据的抽象。
+3. 新增或修改 Python 公共函数、跨模块入口和数据模型时补齐参数与返回值类型；同步/异步边界必须与实际 I/O 和调用链一致。
+4. 外部 client、recorder、tool registry 等需要替换或隔离的依赖优先通过构造参数注入。捕获异常只用于补充上下文、转换边界错误或执行降级，且工具失败必须保留调用级审计，不能伪装成成功事实。
+5. 前端请求和响应类型、通用错误处理统一放在 `frontend/src/api.ts`；服务端数据通过
+   `frontend/src/hooks.ts` 或同层受控 Hook 暴露状态。新增页面必须覆盖其数据路径相关的加载中、空数据、刷新失败和首次加载失败状态。
+6. 前端不得原地修改 props、查询结果或共享对象，也不得绕过受控 action 直接篡改共享状态。UI 改动还须遵守
+   `frontend/AGENTS.md` 的语义、键盘可达、焦点、动态反馈、响应式与动效规则。
+
+## 验证与文档更新
+
+- 只先运行受影响边界所需的最小验证；合并前补齐本次变更要求的确定性检查。
+- Python 确定性测试：`make test`。
+- 前端改动至少运行：`make frontend-build`。涉及交互、响应式或视觉表现时，还须在浏览器检查相关状态；构建成功不替代可访问性和交互验证。
+- 修改模型、prompt、工具描述或 judge 时，运行最小相关评估；非确定性结论默认至少 `N≥4`，并记录假设、数据集版本、参数、结果和裁决。
+- 系统边界、工具契约、权限、安全、评估口径或跨模块产物发生变化时，同步相关规格和索引；用户可见变化写入 `CHANGELOG.md`，长期架构取舍写入 `docs/decisions/` 下的 ADR。
+
 ## 分支模型
 
 - `main`：已收口的里程碑（1.0 + 各 Phase）。
@@ -35,48 +63,24 @@ New issue(模板) + 打标签 + 加进 Project
 
 ## 评估怎么跑
 
-- 生成答案 + 审计：`python -m src.eval_answer_runner`
-- L1 路由判分（确定性）：`python -m src.eval_judge`
-- L2 内容判分（LLM 裁判，慢 / 非确定 / 烧 token）：`python -m src.eval_l2_judge`
-- 裁判回归用固定夹具 N 跑：`python -m src.eval_l2_fixtures`
+- 生成答案 + 审计：`make eval-run`
+- L1 路由判分（确定性）：`make eval-l1`
+- L2 内容判分（LLM 裁判，慢 / 非确定 / 烧 token）：`make eval-l2`
+- 裁判回归用固定夹具 N 跑：`make eval-fixtures`
 - **别单 run**：裁判抽取是非确定的，单次结果会被抖动误导，结论一律 N≥4 取统计。
-- `data/orders.json` 是**冻结的 eval fixture**：部分 golden 按订单状态 key（如已签收单不要求 eta）。改动数据后须复核相关 golden 并更新 `src/eval_l2_judge.py` 里的 `_ORDERS_FROZEN_SHA256`。
+- `data/orders.json` 是**冻结的 eval fixture**：部分 golden 按订单状态 key（如已签收单不要求 eta）。改动数据后须复核相关 golden 并更新 `src/eval/l2/judge.py` 里的 `_ORDERS_FROZEN_SHA256`。
 
-## 跨边界数据契约（硬规则）
+## 修改跨边界数据契约
 
-> 立此规则的由来：`l2_fixtures_*.json` 曾经只以裸 dict 存在于代码里。三个月后回头下钻，
-> 没人能说清 `pass_rate` 在 case 层和 anchor 层是不是一个东西；`metrics` 更是被 judge 侧和
-> dashboard 侧各算了一遍，口径已经分叉。契约写在脑子里 = 没有契约；写在 md 里 = 会腐烂的契约。
+跨边界数据与派生量的设计规则见
+[`Coding Standards`](./docs/development/coding-standards.md#contracts-and-data-changes)。修改契约时按以下流程执行：
 
-**规则：任何跨边界的数据，schema 必须是 `src/contracts/` 下的 pydantic model。**
+1. 修改或新增 `src/contracts/` 下的 Pydantic model；不兼容变化同时提升 `schema_version`。
+2. 运行 `make schema-export` 重新生成 `src/contracts/schemas/*.schema.json`。
+3. 审查生成的 JSON Schema 快照 diff，并随 model 变更一并提交。
+4. 判断已有产物是否仍兼容；不兼容时明确选择重跑或删除旧产物，并在关联 Spec 或 PR 中记录处理策略。
 
-「跨边界」指满足任一条：
-
-- 落盘（`logs/` `data/` 里的 json/jsonl）
-- 跨语言（要被 `frontend/` 消费）
-- 跨模块被读回（A 模块写、B 模块读）
-
-进程内传递的 dict 不受此约束，别为了规范而规范。
-
-配套要求，缺一不可：
-
-1. **派生量不落成字段，用 `@computed_field`。** `flag` / `pass_rate` 这类可从原始数据算出来的，
-   一律 computed。落成普通字段就会和原始数据分叉。
-2. **指标记分子分母，不只记率。** `extract_rate: 0.25` 单独出现时无法复核；
-   旁边必须有 `not_extracted_runs` / `anchor_runs`。率由它们 computed 出来。
-3. **一个指标只有一处实现。** 写侧和读侧调同一个 `Model.from_xxx()`，不许各算一遍。
-4. **产物自描述。** 顶层带 `schema_version` + `artifact`；派生产物带 `derived_from`。
-5. **schema 快照进仓库。** `uv run python -m src.contracts.export_schemas` 生成
-   `src/contracts/schemas/*.schema.json`，`tests/test_contract_schemas.py` 钉住它。
-   改字段而不更新快照 → 测试红。schema 变更必须出现在 PR diff 里。
-
-改契约的动作固定为：改 model → 跑 export_schemas → 快照进 diff → 决定旧产物重跑还是删除
-（`schema_version` 不兼容时旧产物读回会直接报错，这是设计意图，不要加兼容层去吞掉它）。
-
-**样板实现：`src/contracts/l2_fixtures.py`。** 迁移其余产物时照抄它的结构。
-当前已迁移：`l2_fixtures_case_result` / `l2_fixtures_metrics`。
-未迁移的裸 dict 产物（`l1_*` / `l2_*` / `manifest` / `retrieval_eval_result` 等）不设 deadline，
-按「下次要动它 / 已经在它上面痛过」的触发器逐个迁。
+旧产物因 `schema_version` 不兼容而读回失败是预期行为，不要用静默兼容层掩盖契约变化。
 
 ## 公开 vs 私有（约定）
 

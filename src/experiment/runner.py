@@ -326,9 +326,13 @@ def run_variant(exp: Experiment, variant: Variant, exp_dir: Path,
 
 
 def _config_summary(cfg: dict) -> dict:
-    """把变体 config 转成 JSON 安全的摘要写进 manifest（callable/工具 impls 不可序列化）。"""
-    out = {}
+    """写入 manifest 的可复现实验配置（不含密钥）。"""
+    # Baseline variant usually has an empty config, but its resolved model is
+    # still essential provenance for interpreting a result.
+    out = {"model": cfg.get("model", config.MODEL)}
     for k, val in cfg.items():
+        if k == "model":
+            continue
         if callable(val):
             out[k] = getattr(val, "__name__", str(val))
         elif k == "tool_impls" and isinstance(val, dict):
