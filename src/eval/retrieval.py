@@ -10,12 +10,13 @@ Recall@k / Precision@k / MRR（item 级，跨 chunk 策略可比，见检索评�
   chunk 映射回它覆盖的 item_ids 再比 gold。chunk 策略随便换、gold 不动。
 - 负样本（gold=[]）单列：Recall 不适用，报 top 相似度，为后续 abstain 阈值铺路。
 """
-import hashlib
+
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import chromadb
+from chromadb.api.types import PyEmbedding
 from openai import OpenAI
 
 from src import config
@@ -31,11 +32,13 @@ KS = (1, 3, 5)  # 报多个 k，给 top_k EXP-3 看曲线
 embed_client = OpenAI(api_key=config.EMBED_API_KEY, base_url=config.EMBED_BASE_URL)
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
+def _embed(texts: list[str]) -> list[PyEmbedding]:
     # 通义 batch 上限保守取 10
-    out: list[list[float]] = []
+    out: list[PyEmbedding] = []
     for i in range(0, len(texts), 10):
-        r = embed_client.embeddings.create(model=config.EMBED_MODEL, input=texts[i:i + 10])
+        r = embed_client.embeddings.create(
+            model=config.EMBED_MODEL, input=texts[i : i + 10]
+        )
         out.extend(d.embedding for d in r.data)
     return out
 
@@ -43,15 +46,19 @@ def _embed(texts: list[str]) -> list[list[float]]:
 @dataclass
 class Chunk:
     id: str
-    text: str               # 喂 embedding 的文本
-    item_ids: list[str]     # 这个 chunk 覆盖哪些原子单元（判分命根子）
+    text: str  # 喂 embedding 的文本
+    item_ids: list[str]  # 这个 chunk 覆盖哪些原子单元（判分命根子）
 
 
 # ========== 可插拔 chunker（EXP-2 在这里加策略）==========
 def chunk_baseline(items: list[dict]) -> list[Chunk]:
     """baseline：1 item/chunk，text = heading + content。"""
-    return [Chunk(id=it["id"], text=f"{it['heading']}\n{it['content']}", item_ids=[it["id"]])
-            for it in items]
+    return [
+        Chunk(
+            id=it["id"], text=f"{it['heading']}\n{it['content']}", item_ids=[it["id"]]
+        )
+        for it in items
+    ]
 
 
 def build_index(chunks: list[Chunk]) -> chromadb.Collection:
@@ -79,13 +86,20 @@ class Retrieved:
     distance: float
 
 
-def retrieve(coll, query_emb: list[float], top_k: int) -> list[Retrieved]:
-    r = coll.query(query_embeddings=[query_emb], n_results=top_k,
-                   include=["metadatas", "distances"])
-    return [Retrieved(chunk_id=cid,
-                      item_ids=m["item_ids"].split(",") if m["item_ids"] else [],
-                      distance=dist)
-            for cid, m, dist in zip(r["ids"][0], r["metadatas"][0], r["distances"][0])]
+def retrieve(coll, query_emb: PyEmbedding, top_k: int) -> list[Retrieved]:
+    r = coll.query(
+        query_embeddings=[query_emb],
+        n_results=top_k,
+        include=["metadatas", "distances"],
+    )
+    return [
+        Retrieved(
+            chunk_id=cid,
+            item_ids=m["item_ids"].split(",") if m["item_ids"] else [],
+            distance=dist,
+        )
+        for cid, m, dist in zip(r["ids"][0], r["metadatas"][0], r["distances"][0])
+    ]
 
 
 def score_query(retrieved: list[Retrieved], gold: set[str], k: int) -> dict:
@@ -93,7 +107,7 @@ def score_query(retrieved: list[Retrieved], gold: set[str], k: int) -> dict:
     topk = retrieved[:k]
     covered = set()
     for r in topk:
-        covered |= (set(r.item_ids) & gold)
+        covered |= set(r.item_ids) & gold
     recall = len(covered) / len(gold) if gold else None
     # Precision@k：top-k 里"命中至少一个 gold item"的 chunk 占比
     hit_chunks = sum(1 for r in topk if set(r.item_ids) & gold)
@@ -105,8 +119,13 @@ def score_query(retrieved: list[Retrieved], gold: set[str], k: int) -> dict:
         if set(r.item_ids) & gold:
             mrr = 1 / rank
             break
-    return {"recall": recall, "precision": precision, "mrr": mrr,
-            "covered": sorted(covered), "top3sims": top3sims}
+    return {
+        "recall": recall,
+        "precision": precision,
+        "mrr": mrr,
+        "covered": sorted(covered),
+        "top3sims": top3sims,
+    }
 
 
 def run(chunker=chunk_baseline, out_dir: Path | None = None):
@@ -123,7 +142,8 @@ def run(chunker=chunk_baseline, out_dir: Path | None = None):
 
     # 分桶聚合
     from collections import defaultdict
-    agg = defaultdict(lambda: defaultdict(list))   # bucket -> metric@k -> [vals]
+
+    agg = defaultdict(lambda: defaultdict(list))  # bucket -> metric@k -> [vals]
     neg_rows = []
     per_query = []
 
@@ -132,8 +152,15 @@ def run(chunker=chunk_baseline, out_dir: Path | None = None):
         retrieved = retrieve(coll, qe, maxk)
         if not gold:  # 负样本
             top3sims = [round(1 - r.distance, 3) for r in retrieved[:3]]
-            neg_rows.append((q["id"], q["query"], retrieved[0].item_ids, top3sims,
-                             [r.item_ids[0] for r in retrieved]))
+            neg_rows.append(
+                (
+                    q["id"],
+                    q["query"],
+                    retrieved[0].item_ids,
+                    top3sims,
+                    [r.item_ids[0] for r in retrieved],
+                )
+            )
             continue
         row = {"id": q["id"], "bucket": q["bucket"], "gold": sorted(gold)}
         for k in KS:
@@ -157,30 +184,41 @@ def run(chunker=chunk_baseline, out_dir: Path | None = None):
     for r in per_query:
         miss = f"  漏:{r['missed']}" if r["missed"] else ""
         sims = r["top3sims"]
-        print(f"  [{r['id']}] {r['bucket']:10} R@1={r['R@1']:.2f} R@3={r['R@3']:.2f} "
-              f"R@5={r['R@5']:.2f} P@3={r['P@3']:.2f} MRR={r['MRR']:.2f}{miss} "
-              f"top3sims={sims}")
+        print(
+            f"  [{r['id']}] {r['bucket']:10} R@1={r['R@1']:.2f} R@3={r['R@3']:.2f} "
+            f"R@5={r['R@5']:.2f} P@3={r['P@3']:.2f} MRR={r['MRR']:.2f}{miss} "
+            f"top3sims={sims}"
+        )
 
     print("\n负样本（gold=[]，top1相似度越低越该 abstain）")
     for qid, query, top_items, top3sims, _ in neg_rows:
         print(f"  [{qid}] top3sims={top3sims}  误检top1={top_items}  «{query}»")
 
-    def avg(xs): return sum(xs) / len(xs) if xs else 0.0
+    def avg(xs):
+        return sum(xs) / len(xs) if xs else 0.0
+
     print("\n" + "=" * 70, "\n分桶聚合（macro 平均）")
     order = ["direct", "cross_item", "paraphrase", "confusing", "ALL"]
     print(f"  {'bucket':12} {'R@1':>6} {'R@3':>6} {'R@5':>6} {'P@3':>6} {'MRR':>6}  n")
     for b in order:
-        if b not in agg: continue
+        if b not in agg:
+            continue
         m = agg[b]
         n = len(m["R@3"])
-        print(f"  {b:12} {avg(m['R@1']):6.2f} {avg(m['R@3']):6.2f} {avg(m['R@5']):6.2f} "
-              f"{avg(m['P@3']):6.2f} {avg(m['MRR']):6.2f}  {n}")
+        print(
+            f"  {b:12} {avg(m['R@1']):6.2f} {avg(m['R@3']):6.2f} {avg(m['R@5']):6.2f} "
+            f"{avg(m['P@3']):6.2f} {avg(m['MRR']):6.2f}  {n}"
+        )
 
-    out = {"per_query": per_query, "negative": neg_rows,
-           "aggregate": {b: {k: avg(v) for k, v in m.items()} for b, m in agg.items()}}
+    out = {
+        "per_query": per_query,
+        "negative": neg_rows,
+        "aggregate": {b: {k: avg(v) for k, v in m.items()} for b, m in agg.items()},
+    }
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "retrieval_eval_result.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return out
 
 

@@ -6,12 +6,9 @@ ESCALATE_TO_HUMAN_SCHEMA = {
         "parameters": {
             "type": "object",
             "properties": {
-                "summary": {
-                    "type": "string",
-                    "description": "用户诉求的简要概括"
-                }
+                "summary": {"type": "string", "description": "用户诉求的简要概括"}
             },
-            "required": ["summary"]
-        }
-    }
+            "required": ["summary"],
+        },
+    },
 }

@@ -15,6 +15,7 @@ status 含义：
 
 用法：uv run python -m src.eval.reconcile <exp_id> [variant]
 """
+
 import json
 import sys
 from pathlib import Path
@@ -30,14 +31,22 @@ def _load_eval(exp_id: str, variant: str) -> tuple[dict, dict]:
     eval_dir = ROOT / "logs" / "experiments" / exp_id / "variants" / variant / "eval"
     if not eval_dir.exists():
         raise FileNotFoundError(f"实验 eval 目录不存在：{eval_dir}")
-    l1 = json.loads((eval_dir / "l1_case_result.json").read_text(encoding="utf-8")) \
-        if (eval_dir / "l1_case_result.json").exists() else {}
-    l2 = json.loads((eval_dir / "l2_case_result.json").read_text(encoding="utf-8")) \
-        if (eval_dir / "l2_case_result.json").exists() else {}
+    l1 = (
+        json.loads((eval_dir / "l1_case_result.json").read_text(encoding="utf-8"))
+        if (eval_dir / "l1_case_result.json").exists()
+        else {}
+    )
+    l2 = (
+        json.loads((eval_dir / "l2_case_result.json").read_text(encoding="utf-8"))
+        if (eval_dir / "l2_case_result.json").exists()
+        else {}
+    )
     return l1, l2
 
 
-def _current_reds(l1: dict, l2: dict) -> tuple[set[tuple[str, str]], set[str]]:
+def _current_reds(
+    l1: dict, l2: dict
+) -> tuple[set[tuple[str, str]], set[tuple[str, str]]]:
     """返回（红项集合 {(case_id, axis)}, 本次覆盖到的 (case_id, axis) 全集）。
     把两层结果统一归一化成 (case_id, axis) 键，axis 三选一：
 
@@ -68,7 +77,10 @@ def _current_reds(l1: dict, l2: dict) -> tuple[set[tuple[str, str]], set[str]]:
             v = run.get("verdict", {})
             if any(h.get("verdict") == "miss" for h in v.get("hit_axis", [])):
                 reds.add((cid, "hit"))
-            if any(a.get("verdict") == "unsupported" for a in v.get("faithfulness_axis", [])):
+            if any(
+                a.get("verdict") == "unsupported"
+                for a in v.get("faithfulness_axis", [])
+            ):
                 reds.add((cid, "faithfulness"))
     return reds, covered
 
@@ -78,7 +90,9 @@ def reconcile(exp_id: str, variant: str = "A_baseline") -> dict:
     l1, l2 = _load_eval(exp_id, variant)
     reds, covered = _current_reds(l1, l2)
 
-    claimed: set[tuple[str, str]] = set()  # 被任何账目（含 wontfix/fixed）认领的 (case, axis)
+    claimed: set[tuple[str, str]] = (
+        set()
+    )  # 被任何账目（含 wontfix/fixed）认领的 (case, axis)
     reproduced, candidate_close, uncovered, wontfix_seen = [], [], [], []
 
     for entry in ledger:
@@ -91,9 +105,14 @@ def reconcile(exp_id: str, variant: str = "A_baseline") -> dict:
             fix_exp = entry.get("fix_exp_id") or ""
             # 早于修复的历史实验里红是应该的，不算回归（exp_id 时间戳前缀可比）
             if hit_keys and exp_id >= fix_exp:
-                reproduced.append({**_brief(entry), "matched": hit_keys,
-                                   "warning": f"⚠️ status={entry['status']} 却复现——疑似回归；"
-                                              "若同键被其他 open 账目认领，可能是同 case 新缺陷，取证区分"})
+                reproduced.append(
+                    {
+                        **_brief(entry),
+                        "matched": hit_keys,
+                        "warning": f"⚠️ status={entry['status']} 却复现——疑似回归；"
+                        "若同键被其他 open 账目认领，可能是同 case 新缺陷，取证区分",
+                    }
+                )
             continue
         if entry["status"] == "wontfix":
             if hit_keys:
@@ -103,16 +122,23 @@ def reconcile(exp_id: str, variant: str = "A_baseline") -> dict:
         if hit_keys:
             reproduced.append({**_brief(entry), "matched": hit_keys})
         elif cov_keys:
-            candidate_close.append({**_brief(entry),
-                                    "covered": sorted(cov_keys),
-                                    "note": "本次全绿——N 跑确认后再置 obsolete，别单次绿就关"})
+            candidate_close.append(
+                {
+                    **_brief(entry),
+                    "covered": sorted(cov_keys),
+                    "note": "本次全绿——N 跑确认后再置 obsolete，别单次绿就关",
+                }
+            )
         else:
-            uncovered.append({**_brief(entry), "note": "本次实验未覆盖其 case，无法对账"})
+            uncovered.append(
+                {**_brief(entry), "note": "本次实验未覆盖其 case，无法对账"}
+            )
 
     untriaged = sorted(k for k in reds if k not in claimed)
 
     report = {
-        "exp_id": exp_id, "variant": variant,
+        "exp_id": exp_id,
+        "variant": variant,
         "reproduced": reproduced,
         "candidate_close": candidate_close,
         "uncovered": uncovered,
@@ -123,8 +149,12 @@ def reconcile(exp_id: str, variant: str = "A_baseline") -> dict:
 
 
 def _brief(entry: dict) -> dict:
-    return {"id": entry["id"], "status": entry["status"], "cluster": entry["cluster"],
-            "signature": entry["signature"][:60]}
+    return {
+        "id": entry["id"],
+        "status": entry["status"],
+        "cluster": entry["cluster"],
+        "signature": entry["signature"][:60],
+    }
 
 
 def _print(report: dict) -> None:
@@ -139,11 +169,15 @@ def _print(report: dict) -> None:
     print(f"\n【未覆盖 {len(report['uncovered'])}】")
     for e in report["uncovered"]:
         print(f"  {e['id']} [{e['status']}]")
-    print(f"\n【新红待 triage {len(report['untriaged_new_reds'])}】（取证定介质后入账）")
+    print(
+        f"\n【新红待 triage {len(report['untriaged_new_reds'])}】（取证定介质后入账）"
+    )
     for k in report["untriaged_new_reds"]:
         print(f"  {k}")
     if report["wontfix_observed"]:
-        print(f"\n【wontfix 观察 {len(report['wontfix_observed'])}】（已裁不修，仅供观察）")
+        print(
+            f"\n【wontfix 观察 {len(report['wontfix_observed'])}】（已裁不修，仅供观察）"
+        )
         for e in report["wontfix_observed"]:
             print(f"  {e['id']} {e['matched']}")
 

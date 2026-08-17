@@ -1,30 +1,33 @@
 from pathlib import Path
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import uvicorn
 
 from src.agent import ChatSession
-from src.dashboard.main import build_dashboard_data
 from src.dashboard.experiment_adapter import build_l2_fixtures_experiment_dashboard_data
-from src.experiment.runner import list_experiments
-from src.experiment.compare import compare_with_detail
+from src.dashboard.main import build_dashboard_data
 from src.eval.l2.annotations import save_l2_annotation
 from src.eval.l2.dashboard import build_l2_dashboard_data
+from src.experiment.compare import compare_with_detail
+from src.experiment.runner import list_experiments
 
 app = FastAPI()
-_sessions: dict[str,ChatSession] = {}
+_sessions: dict[str, ChatSession] = {}
 _static_dir = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
+
 class RequestMessage(BaseModel):
-    session_id : str = ""
+    session_id: str = ""
     user_input: str
+
 
 class ResponseMessage(BaseModel):
     session_id: str
     assistant_message: str
+
 
 class L2RootCauseAnnotationRequest(BaseModel):
     case_id: str
@@ -37,20 +40,23 @@ class L2RootCauseAnnotationRequest(BaseModel):
     variant: str | None = None
     run_index: int | None = None
 
+
 def get_or_create(session_id: str) -> ChatSession:
     if session_id in _sessions:
         return _sessions[session_id]
-    
+
     session = ChatSession()
     _sessions[session.id] = session
     return session
 
+
 @app.post("/chat")
 def chat_endpoint(request: RequestMessage) -> ResponseMessage:
-    
+
     session = get_or_create(request.session_id)
     chat_response = session.chat(request.user_input)
     return ResponseMessage(session_id=session.id, assistant_message=chat_response)
+
 
 @app.get("/api/eval-dashboard")
 def eval_dashboard_endpoint(
@@ -82,7 +88,9 @@ def l2_eval_dashboard_endpoint(
 def l2_fixtures_dashboard_endpoint(exp_id: str, variant: str) -> dict:
     # 本轨没有 legacy 源：夹具结果只存在于某次实验里，exp_id/variant 必填
     try:
-        return build_l2_fixtures_experiment_dashboard_data(exp_id=exp_id, variant=variant)
+        return build_l2_fixtures_experiment_dashboard_data(
+            exp_id=exp_id, variant=variant
+        )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -131,6 +139,7 @@ def spa_page() -> FileResponse:
         _static_dir / "index.html",
         headers={"Cache-Control": "no-store"},
     )
+
 
 app.mount(
     "/",

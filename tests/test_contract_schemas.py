@@ -2,6 +2,7 @@
 
 改了契约却没跑 export_schemas → 这里红。schema 变更从此必须出现在 PR diff 里。
 """
+
 import unittest
 
 from src.contracts.export_schemas import ARTIFACTS, SCHEMA_DIR, schema_of
@@ -23,7 +24,9 @@ class ContractSchemaSnapshotTest(unittest.TestCase):
     def test_snapshot_dir_has_no_orphans(self):
         expected = {f"{name}.schema.json" for name in ARTIFACTS}
         actual = {p.name for p in SCHEMA_DIR.glob("*.schema.json")}
-        self.assertEqual(actual - expected, set(), "docs/schemas/ 下有已删除 model 的残留快照")
+        self.assertEqual(
+            actual - expected, set(), "docs/schemas/ 下有已删除 model 的残留快照"
+        )
 
 
 if __name__ == "__main__":

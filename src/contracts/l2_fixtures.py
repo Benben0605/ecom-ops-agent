@@ -13,6 +13,7 @@
 
 改字段后必须跑 `uv run python -m src.contracts.export_schemas` 更新 docs/schemas/ 快照。
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -50,6 +51,7 @@ def _verdict_of(matched: list["Assertion"]) -> RunVerdict:
 # ========== 叶子 ==========
 class Assertion(BaseModel):
     """judge 忠实轴的一条断言。"""
+
     assertion: str
     verdict: Literal["supported", "unsupported"]
     evidence: str = ""
@@ -57,6 +59,7 @@ class Assertion(BaseModel):
 
 class HitPoint(BaseModel):
     """judge 命中轴的一个 golden point。"""
+
     point: str
     verdict: Literal["hit", "miss"]
     evidence: str = ""
@@ -68,13 +71,20 @@ class AnchorRun(BaseModel):
     run_verdict 三态：judge 没抽出匹配的断言（not_extracted）≠ 判它 supported。
     绿锚从未被抽到也记 ok，靠 extract_rate 把这种低置信度的假绿暴露出来。
     """
+
     run_index: int  # 1-based
     ok: bool
     matched: list[Assertion]
 
     @classmethod
-    def build(cls, *, run_index: int, matched: list[Assertion], expect: Expect) -> AnchorRun:
-        return cls(run_index=run_index, ok=_run_ok(expect, _verdict_of(matched)), matched=matched)
+    def build(
+        cls, *, run_index: int, matched: list[Assertion], expect: Expect
+    ) -> AnchorRun:
+        return cls(
+            run_index=run_index,
+            ok=_run_ok(expect, _verdict_of(matched)),
+            matched=matched,
+        )
 
     @computed_field
     @property
@@ -84,6 +94,7 @@ class AnchorRun(BaseModel):
 
 class JudgeVerdict(BaseModel):
     """某次 run 的 judge 原始输出，未按锚点切分。下钻时用来看 judge 到底抽了什么。"""
+
     run_index: int
     hit_axis: list[HitPoint] = []
     faithfulness_axis: list[Assertion] = []
@@ -91,6 +102,7 @@ class JudgeVerdict(BaseModel):
 
 class FixtureInput(BaseModel):
     """夹具冻结的 judge 输入，原样复制进产物，下钻时不必回查夹具文件。"""
+
     question: str
     answer: str
     tool_outputs: list[str]
@@ -100,6 +112,7 @@ class FixtureInput(BaseModel):
 # ========== 锚点 ==========
 class AnchorRecord(BaseModel):
     """一条锚点 N 次 run 的汇总。计数和 flag 全部由 runs 派生，不可能与 runs 分叉。"""
+
     anchor_id: str
     case_id: str
     axis: Literal["faithfulness"]
@@ -158,6 +171,7 @@ class AnchorRecord(BaseModel):
 
 class FailedAnchor(BaseModel):
     """metrics 里的失败锚点索引；完整下钻回 case_result 按 anchor_id 找。"""
+
     case_id: str
     anchor_id: str
     match: str
@@ -195,7 +209,9 @@ class CaseRecord(BaseModel):
         """N 次 run 里「所有锚点同时 ok」的比例。与 l1/l2 轨的 pass_rate 同义，可横向比。"""
         if not self.anchors:
             return None
-        passing = sum(1 for i in range(self.n) if all(a.runs[i].ok for a in self.anchors))
+        passing = sum(
+            1 for i in range(self.n) if all(a.runs[i].ok for a in self.anchors)
+        )
         return _rate(passing, self.n)
 
     @computed_field
@@ -227,6 +243,7 @@ class CaseRecord(BaseModel):
 # ========== 落盘产物 ==========
 class FixturesCaseResult(BaseModel):
     """下钻详情。artifact: l2_fixtures_case_result.json"""
+
     schema_version: Literal[1] = SCHEMA_VERSION
     artifact: Literal["l2_fixtures_case_result"] = "l2_fixtures_case_result"
     cases: dict[str, CaseRecord]
@@ -238,9 +255,12 @@ class FixturesMetrics(BaseModel):
     只存计数，率一律 computed——这样看到 extract_rate=0.25 时，分子分母就在旁边。
     唯一构造入口是 from_cases()，dashboard 的分桶拆解也调它，不许另写一份。
     """
+
     schema_version: Literal[1] = SCHEMA_VERSION
     artifact: Literal["l2_fixtures_metrics"] = "l2_fixtures_metrics"
-    derived_from: Literal["l2_fixtures_case_result.json"] = "l2_fixtures_case_result.json"
+    derived_from: Literal["l2_fixtures_case_result.json"] = (
+        "l2_fixtures_case_result.json"
+    )
 
     n: int
     case_count: int
@@ -278,9 +298,15 @@ class FixturesMetrics(BaseModel):
             green_runs=sum(a.n for a in green),
             green_unsupported_runs=sum(a.unsupported_runs for a in green),
             failed_anchors=[
-                FailedAnchor(case_id=a.case_id, anchor_id=a.anchor_id, match=a.match,
-                             expect=a.expect, flag=a.flag)
-                for a in anchors if a.flag != "pass"
+                FailedAnchor(
+                    case_id=a.case_id,
+                    anchor_id=a.anchor_id,
+                    match=a.match,
+                    expect=a.expect,
+                    flag=a.flag,
+                )
+                for a in anchors
+                if a.flag != "pass"
             ],
         )
 

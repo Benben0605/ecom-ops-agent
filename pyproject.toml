@@ -12,6 +12,12 @@ dependencies = [
     "python-dotenv",
 ]
 
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "ruff>=0.16.3",
+]
+
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
@@ -19,3 +25,14 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pyright]
+include = ["main.py", "scripts", "src", "tests"]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"

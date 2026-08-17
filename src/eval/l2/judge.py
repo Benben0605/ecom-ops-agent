@@ -16,13 +16,22 @@ ROOT = Path(__file__).parents[3]
 # complex_task（2.0 Phase1）也是事实桶：有 golden（=分解后的子目标）+ tool 输出可对照
 # role_flip/personalization（Phase3）也是：golden=身份/画像下的正确内容面
 # （个性化类目、authz 弹回话术、零经营数字），归因句/弹回文本都在 tool output 池可对照
-FACTUAL_BUCKETS = {"direct", "rephrased", "multi_intent", "confusing", "complex_task",
-                   "role_flip", "personalization"}
+FACTUAL_BUCKETS = {
+    "direct",
+    "rephrased",
+    "multi_intent",
+    "confusing",
+    "complex_task",
+    "role_flip",
+    "personalization",
+}
 
 # orders.json 是冻结的 eval fixture：部分 golden 按订单状态 key（如已签收/已取消单删 eta，
 # 见 case_021/044）。数据一旦改动，这些状态相关的 golden 可能烂掉，必须复核后更新此哈希。
 # 守卫的是「改了数据却没复核 golden」的静默漂移（A 方案，详见招牌点 L2-21）。
-_ORDERS_FROZEN_SHA256 = "5342675ce9bdd39c6b943d889b88be8e96000a23ce2c8d7697f4f347a0dd3acf"
+_ORDERS_FROZEN_SHA256 = (
+    "5342675ce9bdd39c6b943d889b88be8e96000a23ce2c8d7697f4f347a0dd3acf"
+)
 
 
 def assert_eval_data_frozen() -> None:
@@ -59,8 +68,11 @@ def load_l2_inputs(run_dir: Path | None = None) -> dict[str, dict]:
             continue
         msgs = sess_by_id.get(sid, [])
         answer = next(
-            (m["content"] for m in reversed(msgs)
-             if m["role"] == "assistant" and m.get("content")),
+            (
+                m["content"]
+                for m in reversed(msgs)
+                if m["role"] == "assistant" and m.get("content")
+            ),
             "",
         )
         tool_outputs = [m["content"] for m in msgs if m["role"] == "tool"]
@@ -148,7 +160,7 @@ def build_user_payload(item: dict) -> str:
 
 
 def judge_one(item: dict, _max_retries: int = 3) -> dict:
-    last_err = None
+    last_err: Exception | None = None
     for attempt in range(_max_retries):
         try:
             resp = client.chat.completions.create(
@@ -161,10 +173,14 @@ def judge_one(item: dict, _max_retries: int = 3) -> dict:
                 temperature=0,
                 timeout=180,  # 单次挂死防护：慢端点下别让一次请求无限阻塞
             )
-            return json.loads(resp.choices[0].message.content)
+            content = resp.choices[0].message.content
+            if content is None:
+                raise ValueError("L2 judge 返回了空响应")
+            return json.loads(content)
         except Exception as e:  # 超时/网络/JSON 解析失败都重试
             last_err = e
             time.sleep(2 * (attempt + 1))
+    assert last_err is not None
     raise last_err
 
 
@@ -188,8 +204,12 @@ def _judge_one_safe(case_id_item: tuple[str, dict]) -> tuple[str, dict]:
     try:
         verdict = judge_one(item)
     except Exception as e:  # 单 case 失败不拖垮整轮（无人值守过夜）
-        return case_id, {"bucket": item["bucket"], "question": item["question"],
-                          "answer": item["answer"], "error": str(e)}
+        return case_id, {
+            "bucket": item["bucket"],
+            "question": item["question"],
+            "answer": item["answer"],
+            "error": str(e),
+        }
     return case_id, {
         "bucket": item["bucket"],
         "question": item["question"],
@@ -199,7 +219,11 @@ def _judge_one_safe(case_id_item: tuple[str, dict]) -> tuple[str, dict]:
     }
 
 
-def run_l2(run_dir: Path | None = None, case_filter: list[str] | None = None, max_workers: int = 16):
+def run_l2(
+    run_dir: Path | None = None,
+    case_filter: list[str] | None = None,
+    max_workers: int = 16,
+):
     """case_filter 给一组 case_id 时只判子集——L2 是逐 case LLM 调用，判前过滤省的是真实 API 费用。
     跨 case 用线程池并发（judge_one 是纯 IO），省的是真实等待时间。"""
     inputs = load_l2_inputs(run_dir)
@@ -215,15 +239,19 @@ if __name__ == "__main__":
     results = run_l2()
     out_path = ROOT / "logs" / "l2_eval_result.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+    out_path.write_text(
+        json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     for cid, r in results.items():
         s = r["score"]
-        print(f"\n[{cid}] {r['bucket']}  命中 {s['hit_ok']}/{s['hit_total']}  "
-              f"忠实 {s['faith_ok']}/{s['faith_total']}")
+        print(
+            f"\n[{cid}] {r['bucket']}  命中 {s['hit_ok']}/{s['hit_total']}  "
+            f"忠实 {s['faith_ok']}/{s['faith_total']}"
+        )
         for h in r["verdict"].get("hit_axis", []):
             mark = "✓" if h["verdict"] == "hit" else "✗"
             print(f"  命中 {mark} {h['point']}")
         for a in r["verdict"].get("faithfulness_axis", []):
             mark = "✓" if a["verdict"] == "supported" else "✗"
-            print(f"  忠实 {mark} {a['assertion']}  ← {a.get('evidence','')}")
+            print(f"  忠实 {mark} {a['assertion']}  ← {a.get('evidence', '')}")

@@ -51,8 +51,11 @@
 
 ## Verification
 
+- Python lint 与格式检查：`make lint`
+- Python 静态类型检查：`make typecheck`
 - Python 确定性测试：`make test`
 - 前端类型检查与构建：`make frontend-build`
+- 合并前完整确定性质量门禁：`make check`
 - 模型、prompt、工具或 judge 行为变化：按 `CONTRIBUTING.md` 运行最小相关评估，非确定性结论默认 `N≥4`
 
 当前测试收集会导入模型配置，但确定性测试不应发起远程模型请求，因此可使用上述非敏感占位值。需要模型或

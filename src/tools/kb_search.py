@@ -9,10 +9,12 @@ LLM grader 判「这些片段真能回答吗」→ 答不上返回 ABSTAIN（让
 gold 上 grader 27/27，阈值法漏 2。分层（cutoff 粗筛+grader 灰区）省一半 call 但 cutoff
 钉在小样本极值上过拟合，等合成更大评估集校准后再上——现取最稳的纯 grader。
 """
+
 import json
 from pathlib import Path
 
 import chromadb
+from chromadb.api.types import PyEmbedding
 from openai import OpenAI
 
 from src import config
@@ -23,7 +25,7 @@ CORPUS_PATH = Path(__file__).parents[2] / "data" / "faq" / "corpus.json"
 ABSTAIN = "知识库中未找到能回答该问题的相关内容。"
 
 GRADER_ENABLED = True  # 测试可关，做消融对比（grader on/off）
-TOP_K = 3              # 默认检索条数；消融实验可调（top_k=3/5/8），run() 不传时取此值
+TOP_K = 3  # 默认检索条数；消融实验可调（top_k=3/5/8），run() 不传时取此值
 
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
 embed_client = OpenAI(api_key=config.EMBED_API_KEY, base_url=config.EMBED_BASE_URL)
@@ -37,10 +39,12 @@ GRADER_PROMPT = """你是检索相关性裁判。给你用户问题和若干已�
 只输出 JSON：{"verdicts": [{"idx": 0, "relevant": true/false, "reason": "一句话"}, ...]}（idx 对应片段编号，逐个判全）"""
 
 
-def _embed(texts: list[str]) -> list[list[float]]:
-    out: list[list[float]] = []
+def _embed(texts: list[str]) -> list[PyEmbedding]:
+    out: list[PyEmbedding] = []
     for i in range(0, len(texts), 10):  # 通义 batch 上限保守取 10
-        r = embed_client.embeddings.create(model=config.EMBED_MODEL, input=texts[i:i + 10])
+        r = embed_client.embeddings.create(
+            model=config.EMBED_MODEL, input=texts[i : i + 10]
+        )
         out.extend(d.embedding for d in r.data)
     return out
 
@@ -58,7 +62,9 @@ def _ensure_index():
         chroma_client.delete_collection(COLLECTION_NAME)
     except Exception:
         pass
-    coll = chroma_client.create_collection(COLLECTION_NAME, metadata={"hnsw:space": "cosine"})
+    coll = chroma_client.create_collection(
+        COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+    )
     texts = [f"{it['heading']}\n{it['content']}" for it in items]
     coll.add(
         ids=[it["id"] for it in items],
@@ -75,12 +81,21 @@ def _grade_chunks(query: str, passages: list[str]) -> list[dict]:
     numbered = "\n".join(f"[{i}] {p}" for i, p in enumerate(passages))
     payload = f"用户问题：{query}\n\n知识库片段（共 {len(passages)} 条）：\n{numbered}"
     r = chat_client.chat.completions.create(
-        model=config.MODEL, temperature=0, response_format={"type": "json_object"},
-        messages=[{"role": "system", "content": GRADER_PROMPT},
-                  {"role": "user", "content": payload}],
+        model=config.MODEL,
+        temperature=0,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": GRADER_PROMPT},
+            {"role": "user", "content": payload},
+        ],
     )
-    by_idx = {d["idx"]: d for d in json.loads(r.choices[0].message.content).get("verdicts", [])}
-    return [by_idx.get(i, {"relevant": True, "reason": ""}) for i in range(len(passages))]
+    content = r.choices[0].message.content
+    if content is None:
+        raise ValueError("检索相关性裁判返回了空响应")
+    by_idx = {d["idx"]: d for d in json.loads(content).get("verdicts", [])}
+    return [
+        by_idx.get(i, {"relevant": True, "reason": ""}) for i in range(len(passages))
+    ]
 
 
 # RAG 可观测性：记录每次检索的「query→逐块命中(sim,relevant)→留哪些/abstain」，供回归追溯与人工裁决
@@ -91,20 +106,48 @@ def run(query: str, top_k: int | None = None) -> str:
     _ensure_index()
     top_k = top_k if top_k is not None else TOP_K  # 消融实验可经模块级 TOP_K 调
     coll = chroma_client.get_collection(COLLECTION_NAME)
-    result = coll.query(query_embeddings=[_embed([query])[0]], n_results=top_k,
-                        include=["documents", "metadatas", "distances"])
-    passages = result["documents"][0]
-    verdicts = (_grade_chunks(query, passages) if GRADER_ENABLED
-                else [{"relevant": True, "reason": ""} for _ in passages])
+    result = coll.query(
+        query_embeddings=[_embed([query])[0]],
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"],
+    )
+    documents = result["documents"]
+    metadatas = result["metadatas"]
+    distances = result["distances"]
+    if not documents or not metadatas or not distances:
+        return ABSTAIN
+    passages = documents[0]
+    verdicts = (
+        _grade_chunks(query, passages)
+        if GRADER_ENABLED
+        else [{"relevant": True, "reason": ""} for _ in passages]
+    )
     kept = [p for p, v in zip(passages, verdicts) if v["relevant"]]
-    chunks = [{"item": m["item_id"], "sim": round(1 - d, 3),
-               "relevant": v["relevant"], "reason": v["reason"]}
-              for m, d, v in zip(result["metadatas"][0], result["distances"][0], verdicts)]
-    TRACE.append({"query": query, "chunks": chunks, "kept": len(kept),
-                  "outcome": "answer" if kept else "abstain"})
+    chunks = [
+        {
+            "item": m["item_id"],
+            "sim": round(1 - d, 3),
+            "relevant": v["relevant"],
+            "reason": v["reason"],
+        }
+        for m, d, v in zip(metadatas[0], distances[0], verdicts)
+    ]
+    TRACE.append(
+        {
+            "query": query,
+            "chunks": chunks,
+            "kept": len(kept),
+            "outcome": "answer" if kept else "abstain",
+        }
+    )
     return "\n\n".join(kept) if kept else ABSTAIN
 
 
 if __name__ == "__main__":
-    for q in ["食品能退吗", "七天无理由退货怎么申请", "支持海外直邮到美国吗", "商品的保质期是多久"]:
+    for q in [
+        "食品能退吗",
+        "七天无理由退货怎么申请",
+        "支持海外直邮到美国吗",
+        "商品的保质期是多久",
+    ]:
         print(f"\nquery: {q}\n→ {run(q)}")

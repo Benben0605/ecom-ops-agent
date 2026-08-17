@@ -1,9 +1,9 @@
 import hashlib
 import json
+import unittest
 from collections import defaultdict
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest.mock import patch
 
 from src.dashboard.experiment_adapter import build_l2_fixtures_experiment_dashboard_data
@@ -26,19 +26,28 @@ def _anchor(match: str, expect: str, axis: str = "faithfulness") -> dict:
 
 # 三次 run 的 judge 输出，覆盖四种锚点结局
 _SCRIPT = [
-    {"hit_axis": [], "faithfulness_axis": [
-        _assertion("越界A", "unsupported"),
-        _assertion("越界B", "unsupported"),
-        _assertion("绿C", "unsupported"),
-    ]},
-    {"hit_axis": [], "faithfulness_axis": [
-        _assertion("越界A", "unsupported"),
-        _assertion("绿C", "supported"),
-    ]},
-    {"hit_axis": [], "faithfulness_axis": [
-        _assertion("越界A", "unsupported"),
-        _assertion("绿C", "supported"),
-    ]},
+    {
+        "hit_axis": [],
+        "faithfulness_axis": [
+            _assertion("越界A", "unsupported"),
+            _assertion("越界B", "unsupported"),
+            _assertion("绿C", "unsupported"),
+        ],
+    },
+    {
+        "hit_axis": [],
+        "faithfulness_axis": [
+            _assertion("越界A", "unsupported"),
+            _assertion("绿C", "supported"),
+        ],
+    },
+    {
+        "hit_axis": [],
+        "faithfulness_axis": [
+            _assertion("越界A", "unsupported"),
+            _assertion("绿C", "supported"),
+        ],
+    },
 ]
 
 _FIXTURE = {
@@ -48,10 +57,10 @@ _FIXTURE = {
     "tool_outputs": ["pool"],
     "golden_points": ["g"],
     "anchors": [
-        _anchor("越界A", "unsupported"),   # 每次都抓到 → pass
-        _anchor("越界B", "unsupported"),   # 只有 run1 抓到 → false_negative
-        _anchor("绿C", "supported"),       # run1 被误判 → false_positive
-        _anchor("绿D", "supported"),       # 从未被抽到 → pass，但 not_extracted_runs == n
+        _anchor("越界A", "unsupported"),  # 每次都抓到 → pass
+        _anchor("越界B", "unsupported"),  # 只有 run1 抓到 → false_negative
+        _anchor("绿C", "supported"),  # run1 被误判 → false_positive
+        _anchor("绿D", "supported"),  # 从未被抽到 → pass，但 not_extracted_runs == n
     ],
 }
 
@@ -62,8 +71,13 @@ class RunFixturesTest(unittest.TestCase):
         self.root = Path(self.temporary_directory.name)
         self.fixtures_path = self.root / "l2_judge_fixtures.json"
         self.cases_path = self.root / "eval_cases.json"
-        _write_json(self.cases_path, [{"id": "case_x", "bucket": "direct"},
-                                      {"id": "case_y", "bucket": "confusing"}])
+        _write_json(
+            self.cases_path,
+            [
+                {"id": "case_x", "bucket": "direct"},
+                {"id": "case_y", "bucket": "confusing"},
+            ],
+        )
 
     def tearDown(self):
         self.temporary_directory.cleanup()
@@ -77,9 +91,11 @@ class RunFixturesTest(unittest.TestCase):
             counters[item["question"]] += 1
             return _SCRIPT[index]
 
-        with patch.object(fx, "FIXTURES", self.fixtures_path), \
-             patch.object(fx, "EVAL_CASES", self.cases_path), \
-             patch.object(fx, "judge_one", fake_judge_one):
+        with (
+            patch.object(fx, "FIXTURES", self.fixtures_path),
+            patch.object(fx, "EVAL_CASES", self.cases_path),
+            patch.object(fx, "judge_one", fake_judge_one),
+        ):
             # max_workers=1：让 pool.map 按提交序执行，脚本第 i 条才对应 run_i
             return fx.run_fixtures(n=n, case_filter=case_filter, max_workers=1)
 
@@ -88,7 +104,11 @@ class RunFixturesTest(unittest.TestCase):
         anchors = {a.match: a for a in case_result.cases["case_x"].anchors}
 
         for anchor in anchors.values():
-            total = anchor.unsupported_runs + anchor.supported_runs + anchor.not_extracted_runs
+            total = (
+                anchor.unsupported_runs
+                + anchor.supported_runs
+                + anchor.not_extracted_runs
+            )
             self.assertEqual(total, anchor.n, f"{anchor.match} 三态之和应等于 n")
 
         self.assertEqual(anchors["越界A"].flag, "pass")
@@ -111,21 +131,24 @@ class RunFixturesTest(unittest.TestCase):
         case_result, metrics = self._run([_FIXTURE])
         case = case_result.cases["case_x"]
 
-        self.assertEqual(case.bucket, "direct")          # 从 eval_cases join
+        self.assertEqual(case.bucket, "direct")  # 从 eval_cases join
         self.assertEqual(case.anchor_count, 4)
         self.assertEqual(case.passed_anchor_count, 2)
         self.assertEqual(case.anchor_pass_rate, 0.5)
-        self.assertEqual(case.run_pass_rate, 0.0)        # 没有一次 run 让四条锚点全部就位
+        self.assertEqual(case.run_pass_rate, 0.0)  # 没有一次 run 让四条锚点全部就位
         self.assertTrue(case.has_issue)
         self.assertEqual(case.issue_types, ["false_negative", "false_positive"])
         self.assertEqual([v.run_index for v in case.judge_verdicts], [1, 2, 3])
         self.assertEqual(case.anchors[0].anchor_id, "case_x::0")
-        self.assertEqual(case.input.question, "q-x")     # 输入收进 input，与产出分开
+        self.assertEqual(case.input.question, "q-x")  # 输入收进 input，与产出分开
 
         self.assertEqual(metrics.anchor_count, 4)
         self.assertEqual(metrics.red_anchor_count, 2)
         self.assertEqual(metrics.green_anchor_count, 2)
         self.assertEqual(metrics.anchor_pass_rate, 0.5)
+        assert metrics.red_anchor_recall is not None
+        assert metrics.green_anchor_fp_rate is not None
+        assert metrics.extract_rate is not None
         self.assertAlmostEqual(metrics.red_anchor_recall, 4 / 6)
         self.assertAlmostEqual(metrics.green_anchor_fp_rate, 1 / 6)
         self.assertAlmostEqual(metrics.extract_rate, 1 - 5 / 12)
@@ -135,14 +158,19 @@ class RunFixturesTest(unittest.TestCase):
     def test_metrics_carry_the_denominators_of_every_rate(self):
         """率必须能被产物里的计数复核，不必回代码读分母。"""
         _, metrics = self._run([_FIXTURE])
-        self.assertEqual(metrics.red_anchor_recall,
-                         metrics.red_unsupported_runs / metrics.red_runs)
-        self.assertEqual(metrics.green_anchor_fp_rate,
-                         metrics.green_unsupported_runs / metrics.green_runs)
-        self.assertEqual(metrics.extract_rate,
-                         1 - metrics.not_extracted_runs / metrics.anchor_runs)
-        self.assertEqual(metrics.anchor_pass_rate,
-                         metrics.passed_anchor_count / metrics.anchor_count)
+        self.assertEqual(
+            metrics.red_anchor_recall, metrics.red_unsupported_runs / metrics.red_runs
+        )
+        self.assertEqual(
+            metrics.green_anchor_fp_rate,
+            metrics.green_unsupported_runs / metrics.green_runs,
+        )
+        self.assertEqual(
+            metrics.extract_rate, 1 - metrics.not_extracted_runs / metrics.anchor_runs
+        )
+        self.assertEqual(
+            metrics.anchor_pass_rate, metrics.passed_anchor_count / metrics.anchor_count
+        )
 
     def test_artifact_round_trips_through_json(self):
         """落盘再读回等价——computed 字段被忽略后由 runs 重新算出同一个值。"""
@@ -167,13 +195,21 @@ class FixturesTrackFilterTest(unittest.TestCase):
     """过滤条件解析（跑在仓库真实 data/ 上）。"""
 
     def _exp(self, **kwargs):
-        return Experiment(name="t", track="l2_fixtures_judge",
-                          variants=[Variant("A_baseline", {})], **kwargs)
+        return Experiment(
+            name="t",
+            track="l2_fixtures_judge",
+            variants=[Variant("A_baseline", {})],
+            **kwargs,
+        )
 
     def test_resolves_against_fixtures_not_eval_cases(self):
-        self.assertEqual(_resolve_case_ids(self._exp(case_filter=["case_072"])), ["case_072"])
-        self.assertEqual(_resolve_case_ids(self._exp(bucket_filter=["personalization"])),
-                         ["case_078", "case_079"])
+        self.assertEqual(
+            _resolve_case_ids(self._exp(case_filter=["case_072"])), ["case_072"]
+        )
+        self.assertEqual(
+            _resolve_case_ids(self._exp(bucket_filter=["personalization"])),
+            ["case_078", "case_079"],
+        )
         self.assertIsNone(_resolve_case_ids(self._exp()))
 
     def test_case_in_eval_cases_but_not_in_fixtures_is_rejected(self):
@@ -222,21 +258,29 @@ class FixturesDashboardTest(unittest.TestCase):
 
         cases_path = self.root / "data" / "eval_cases.json"
         _write_json(cases_path, [{"id": "case_x", "bucket": "direct"}])
-        with patch.object(fx, "FIXTURES", fixtures_path), \
-             patch.object(fx, "EVAL_CASES", cases_path), \
-             patch.object(fx, "judge_one", fake_judge_one):
+        with (
+            patch.object(fx, "FIXTURES", fixtures_path),
+            patch.object(fx, "EVAL_CASES", cases_path),
+            patch.object(fx, "judge_one", fake_judge_one),
+        ):
             case_result, metrics = fx.run_fixtures(n=3, max_workers=1)
 
         eval_dir = self.exp_dir / "variants" / self.variant / "eval"
-        _write_json(eval_dir / "l2_fixtures_case_result.json", json.loads(case_result.model_dump_json()))
-        _write_json(eval_dir / "l2_fixtures_metrics.json", json.loads(metrics.model_dump_json()))
+        _write_json(
+            eval_dir / "l2_fixtures_case_result.json",
+            json.loads(case_result.model_dump_json()),
+        )
+        _write_json(
+            eval_dir / "l2_fixtures_metrics.json", json.loads(metrics.model_dump_json())
+        )
 
     def tearDown(self):
         self.temporary_directory.cleanup()
 
     def _build(self):
         return build_l2_fixtures_experiment_dashboard_data(
-            root=self.root, exp_id=self.exp_id, variant=self.variant)
+            root=self.root, exp_id=self.exp_id, variant=self.variant
+        )
 
     def test_context_and_provenance(self):
         context = self._build()["context"]
@@ -246,7 +290,10 @@ class FixturesDashboardTest(unittest.TestCase):
         self.assertEqual(context["warnings"], [])
 
     def test_fixture_drift_warns(self):
-        _write_json(self.root / "data" / "l2_judge_fixtures.json", [{**_FIXTURE, "answer": "改了"}])
+        _write_json(
+            self.root / "data" / "l2_judge_fixtures.json",
+            [{**_FIXTURE, "answer": "改了"}],
+        )
         context = self._build()["context"]
         self.assertFalse(context["dataset_sha_match"])
         self.assertIn("夹具答案或锚点可能已改", context["warnings"][0])
@@ -277,13 +324,15 @@ class FixturesDashboardTest(unittest.TestCase):
         self.assertEqual(len(payload["cases"]), 1)
         case = payload["cases"][0]
         self.assertEqual(case["case_id"], "case_x")
-        self.assertNotIn("judge_verdicts", case)           # 出口统一叫 experiment_runs
+        self.assertNotIn("judge_verdicts", case)  # 出口统一叫 experiment_runs
         self.assertEqual([r["run_index"] for r in case["experiment_runs"]], [1, 2, 3])
         self.assertEqual(case["anchors"][0]["runs"][0]["run_verdict"], "unsupported")
         self.assertEqual(case["input"]["question"], "q-x")
 
         self.assertEqual([c["case_id"] for c in payload["issue_cases"]], ["case_x"])
-        self.assertEqual({a["match"] for a in payload["failed_anchors"]}, {"越界B", "绿C"})
+        self.assertEqual(
+            {a["match"] for a in payload["failed_anchors"]}, {"越界B", "绿C"}
+        )
         self.assertEqual(payload["failed_anchors"][0]["bucket"], "direct")
 
     def test_rejects_other_tracks(self):
@@ -294,7 +343,8 @@ class FixturesDashboardTest(unittest.TestCase):
     def test_missing_experiment_raises_file_not_found(self):
         with self.assertRaises(FileNotFoundError):
             build_l2_fixtures_experiment_dashboard_data(
-                root=self.root, exp_id="nope", variant=self.variant)
+                root=self.root, exp_id="nope", variant=self.variant
+            )
 
 
 if __name__ == "__main__":

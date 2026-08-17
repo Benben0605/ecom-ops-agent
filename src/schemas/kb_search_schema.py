@@ -8,7 +8,7 @@ KB_SEARCH_SCHEMA = {
             "properties": {
                 "query": {"type": "string", "description": "用户的咨询问题"}
             },
-            "required": ["query"]
-        }
-    }
+            "required": ["query"],
+        },
+    },
 }

@@ -8,15 +8,15 @@ ANALYZE_OPS_SCHEMA = {
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "只统计某个类目，如：美妆护肤、数码。不传则统计全部"
+                    "description": "只统计某个类目，如：美妆护肤、数码。不传则统计全部",
                 },
                 "metric": {
                     "type": "string",
                     "enum": ["sales", "count"],
-                    "description": "统计热销商品的口径：sales=销售额，count=订单数。不传则两种口径都算"
-                }
+                    "description": "统计热销商品的口径：sales=销售额，count=订单数。不传则两种口径都算",
+                },
             },
-            "required": []
-        }
-    }
+            "required": [],
+        },
+    },
 }

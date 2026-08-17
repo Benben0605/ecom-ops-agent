@@ -11,7 +11,6 @@ import json
 from collections import Counter
 from pathlib import Path
 
-
 ROOT = Path(__file__).parents[1]
 EVAL_CASES_PATH = ROOT / "data" / "eval_cases.json"
 
@@ -24,9 +23,7 @@ def summarize_eval_cases(path: Path = EVAL_CASES_PATH) -> dict[str, object]:
         raise ValueError(f"评估集必须是 JSON array: {path}")
 
     buckets = Counter(
-        str(case.get("bucket", "unknown"))
-        for case in cases
-        if isinstance(case, dict)
+        str(case.get("bucket", "unknown")) for case in cases if isinstance(case, dict)
     )
     return {
         "dataset": str(path.relative_to(ROOT)),

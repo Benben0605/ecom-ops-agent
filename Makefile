@@ -14,7 +14,7 @@ ARGS ?=
 EXP_ID ?=
 VARIANT ?= A_baseline
 
-.PHONY: help install cli api frontend-dev frontend-build test check schema-export \
+.PHONY: help install cli api frontend-dev frontend-build lint typecheck test check schema-export \
 	eval-dataset-info eval-run eval-l1 eval-l2 eval-fixtures eval-compare retrieval-eval experiment \
 	reconcile docker-build
 
@@ -37,10 +37,17 @@ frontend-dev: ## Start the Vite development server
 frontend-build: ## Type-check and build the frontend
 	$(NPM) --prefix frontend run build
 
+lint: ## Check Python lint and formatting
+	$(UV) run ruff check .
+	$(UV) run ruff format --check .
+
+typecheck: ## Check Python types with Pyright
+	$(UV) run pyright
+
 test: ## Run deterministic Python tests with non-secret placeholder keys
 	LLM_API_KEY=test-only EMBED_API_KEY=test-only $(PYTHON_RUN) -m unittest discover -s tests
 
-check: test frontend-build ## Run all deterministic verification
+check: lint typecheck test frontend-build ## Run the full deterministic quality gate
 
 schema-export: ## Regenerate committed JSON Schema snapshots
 	$(PYTHON_RUN) -m src.contracts.export_schemas

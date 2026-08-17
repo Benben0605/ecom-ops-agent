@@ -1,4 +1,5 @@
 """跨边界数据契约。规则见 CONTRIBUTING.md「跨边界数据契约」。"""
+
 import json
 from pathlib import Path
 from typing import TypeVar
