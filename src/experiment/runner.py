@@ -530,10 +530,19 @@ if __name__ == "__main__":
     # ))
 
     # ⑨ fixtures-judge 首跑，观察 judge-Dashboard 效果
+    # run_experiment(Experiment(
+    #     name="fixtures_judge_first_run",
+    #     track=FIXTURES_TRACK,
+    #     variants=variants,
+    #     n=3,
+    #     case_filter=["case_072", "case_078", "case_079"],
+    # ))
+
+    #  (10) 单跑case_078,看fixture-case_078-answer “看你之前还买过我们家的蓝牙“在最新的agent是否还会跑出来
     run_experiment(Experiment(
-        name="fixtures_judge_first_run",
-        track=FIXTURES_TRACK,
+        name="case_078_fixture_answer",
+        track="agent",
         variants=variants,
         n=3,
-        case_filter=["case_072", "case_078", "case_079"],
+        case_filter=["case_078"],
     ))
