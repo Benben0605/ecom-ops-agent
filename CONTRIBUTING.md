@@ -25,6 +25,9 @@
 ## 验证与文档更新
 
 - 只先运行受影响边界所需的最小验证；合并前补齐本次变更要求的确定性检查。
+- GitHub Actions 工作流中的外部 `uses:` 依赖必须固定到完整的 40 位 commit SHA，不得使用分支、tag 或缩写 SHA；
+  在行尾保留对应 release tag 注释（例如 `# v7.0.0`）供审查和更新。升级时先从依赖的官方仓库核对 release tag
+  对应的完整 SHA，再同时更新 SHA 与注释，并检查 `.github/workflows/` 下所有 `uses:` 引用。
 - Python lint 与格式检查：`make lint`。
 - Python 静态类型检查：`make typecheck`。
 - Python 确定性测试：`make test`。
