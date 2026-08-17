@@ -359,12 +359,6 @@ Gate 时，把对应审核字段更新为 `approved by <reviewer> on YYYY-MM-DD`
 |--------|-----------------------|------------|------|
 | _None_ | — | — | — |
 
-### 兼容材料（不是规格包索引）
-
-[`SDD 启动与代码整理计划`](<./sdd-kickoff-and-codebase-cleanup-plan/SDD 启动与代码整理计划.md>) 是迁移前的启动
-计划，保留原位置与原名称。它不是 `SPEC.md`，未经过本规范的人工 Gate，不具有 `accepted`、`implementing` 或
-`verified` 的 Spec 状态；其中计划项也不构成能力可用性证明。
-
 ## 与 ADR、Issue、PR 和实验的关系
 
 | 产物 | 负责回答 | 不应替代 |
