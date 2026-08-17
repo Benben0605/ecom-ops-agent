@@ -2,7 +2,6 @@
 __pycache__/
 *.pyc
 .env
-.DS_Store
 .chroma/
 .chroma_eval/
 .obsidian/
@@ -12,8 +11,18 @@ __pycache__/
 # Runtime audit log (regenerated on each run)
 logs/
 
+# Versioned documentation allowlist
+/docs/*
+!/docs/specs/
+!/docs/specs/**
+!/docs/development/
+!/docs/development/**
+!/docs/architecture.md
+!/docs/decisions/
+!/docs/decisions/**
+*.DS_Store
+
 # Local planning/progress notes
-/docs/
 /DAILY_SCHEDULE.md
 /PROGRESS.md
 
